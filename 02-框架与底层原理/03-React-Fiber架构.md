@@ -173,6 +173,51 @@ React 18 默认启用 Concurrent Mode 特性：
 </Suspense>
 ```
 
+### 7. Hooks 与 memoizedState 链表
+
+```javascript
+// Fiber 节点上
+{
+  memoizedState: hook1 -> hook2 -> hook3, // 单向链表
+  // hook: { memoizedState, next, queue }
+}
+// useState/useEffect/useMemo 各占一个 hook 节点，顺序固定
+```
+
+### 8. beginWork 与 completeWork
+
+```mermaid
+flowchart TD
+    beginWork[beginWork 向下遍历] --> child[处理 child Fiber]
+    child --> completeWork[completeWork 向上归并]
+    completeWork --> sibling[sibling 或 return 父节点]
+```
+
+- **beginWork：** 根据 update 标记，执行组件 render，Diff children
+- **completeWork：** 创建/更新 DOM，收集 effect list（Placement/Update/Deletion flags）
+
+### 9. Suspense 原理
+
+Suspense 捕获子组件 throw 的 Promise，暂停该子树 commit，展示 fallback；Promise resolve 后重新调度 render 并 commit。与 Concurrent 特性配合实现流式加载。
+
+### 10. React 19 新特性概览
+
+| 特性 | 说明 |
+|------|------|
+| `use()` | 在 render 中读取 Promise/Context |
+| Actions | 表单异步提交、`useActionState`、`useFormStatus` |
+| RSC | Server Components 默认服务端，减少客户端 bundle |
+| React Compiler | 编译时自动 memo，减少手动优化 |
+| Document Metadata | 内置 `<title>`、`<meta>` 支持 |
+
+```jsx
+// use() 读取 Promise
+function Comments({ commentsPromise }) {
+  const comments = use(commentsPromise);
+  return comments.map(c => <p key={c.id}>{c.text}</p>);
+}
+```
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

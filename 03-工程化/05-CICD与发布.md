@@ -151,6 +151,54 @@ git push origin v1.2.3
 - 一键切换 CDN/容器镜像到上一版本
 - 数据库迁移需考虑 backward compatible
 
+### 7. Docker 容器化
+
+```dockerfile
+# 多阶段构建 — 减小镜像
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+```
+
+### 8. 制品管理与质量门禁
+
+- **制品：** 构建产物上传 S3/OSS/Artifactory，带版本 tag
+- **质量门禁：** PR 必须通过 lint、test、coverage 阈值、Lighthouse CI 分数
+
+```yaml
+- run: pnpm test --coverage
+- uses: treosh/lighthouse-ci-action@v10
+  with:
+    urls: |
+      https://staging.example.com
+    budgetPath: ./lighthouse-budget.json
+```
+
+### 9. Secrets 与 CI 平台对比
+
+| 平台 | 特点 |
+|------|------|
+| GitHub Actions | 与 GitHub 深度集成 |
+| GitLab CI | 内置 Registry、Pages |
+| Jenkins | 自托管，插件丰富 |
+
+Secrets 存于 CI 变量，不写入代码；生产密钥与 staging 分离。
+
+### 10. 部署后验证与 GitOps
+
+```bash
+# 冒烟测试
+curl -f https://prod.example.com/health || exit 1
+```
+
+**GitOps：** 以 Git 为单一事实来源，Argo CD / Flux 监听 repo 变更自动同步集群状态。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

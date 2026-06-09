@@ -223,6 +223,139 @@ function addElement() {
 }
 ```
 
+### 6. 数据类型与类型转换
+
+**8 种数据类型：** 7 种原始类型（`undefined`、`null`、`boolean`、`number`、`string`、`symbol`、`bigint`）+ `object`。
+
+```javascript
+// == 抽象相等：会类型转换
+0 == false        // true
+'' == false       // true
+null == undefined // true
+
+// === 严格相等：不转换
+0 === false       // false
+
+// ToPrimitive：对象转原始值，先 valueOf 再 toString
+[1, 2] + [3, 4]   // "1,23,4" — 数组转字符串再拼接
+
+// 装箱：原始值临时包装为对象
+'hello'.toUpperCase(); // 内部 new String('hello')
+```
+
+### 7. 变量提升与 TDZ
+
+```javascript
+console.log(a); // undefined — var 提升，初始化为 undefined
+var a = 1;
+
+console.log(b); // ReferenceError — TDZ 暂时性死区
+let b = 2;
+
+// 函数声明整体提升
+foo(); // OK
+function foo() {}
+```
+
+**TDZ：** `let`/`const` 从块开始到声明行之前不可访问，即使已"提升"也未初始化。
+
+### 8. 手写 call / apply / bind / new / instanceof
+
+```javascript
+Function.prototype.myCall = function(ctx, ...args) {
+  ctx = ctx ?? globalThis;
+  const fn = Symbol('fn');
+  ctx[fn] = this;
+  const result = ctx[fn](...args);
+  delete ctx[fn];
+  return result;
+};
+
+Function.prototype.myBind = function(ctx, ...args) {
+  const fn = this;
+  return function bound(...rest) {
+    return fn.apply(ctx, [...args, ...rest]);
+  };
+};
+
+function myNew(Constructor, ...args) {
+  const obj = Object.create(Constructor.prototype);
+  const result = Constructor.apply(obj, args);
+  return result instanceof Object ? result : obj;
+}
+
+function myInstanceof(obj, Constructor) {
+  let proto = Object.getPrototypeOf(obj);
+  while (proto) {
+    if (proto === Constructor.prototype) return true;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
+}
+```
+
+### 9. 浅拷贝与深拷贝
+
+```javascript
+// 浅拷贝
+const shallow = { ...obj };
+const shallow2 = Object.assign({}, obj);
+
+// 深拷贝
+const deep = structuredClone(obj); // 现代 API，不支持函数/Symbol
+// JSON.parse(JSON.stringify(obj)) — 丢失 undefined、函数、Date
+```
+
+### 10. 迭代器与 Generator
+
+```javascript
+const range = {
+  *[Symbol.iterator]() {
+    for (let i = 0; i < 3; i++) yield i;
+  }
+};
+for (const n of range) console.log(n); // 0, 1, 2
+
+function* idGenerator() {
+  let id = 0;
+  while (true) yield ++id;
+}
+```
+
+### 11. 事件机制
+
+```mermaid
+flowchart BT
+    Target[目标元素] --> Bubble[冒泡阶段 向上]
+    Target --> TargetPhase[目标阶段]
+    Target --> Capture[捕获阶段 向下]
+```
+
+```javascript
+// 事件委托 — 利用冒泡，减少监听器
+document.getElementById('list').addEventListener('click', (e) => {
+  if (e.target.matches('li')) {
+    console.log('clicked', e.target.textContent);
+  }
+});
+
+// { capture: true } 捕获阶段触发
+// stopPropagation() 阻止传播；preventDefault() 阻止默认行为
+```
+
+### 12. ES6+ 常用语法
+
+```javascript
+const { name, age = 18 } = user;
+const [first, ...rest] = arr;
+
+const value = obj?.nested?.prop;  // 可选链
+const result = input ?? 'default';  // 空值合并（仅 null/undefined）
+
+const fn = (a, b = 0) => a + b;
+const doubled = arr.map(x => x * 2);
+```
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
@@ -242,9 +375,11 @@ function addElement() {
 ## 小结
 
 - 执行上下文 + 作用域链决定变量查找
+- 类型转换与 `==`/`===` 差异是面试与 bug 高发区
 - 原型链是 JS 对象继承的底层机制
 - 闭包 = 函数 + 其引用的词法环境
 - `this` 由调用方式决定，箭头函数继承外层
+- 事件委托、迭代器、ES6+ 语法是日常开发基础
 - 垃圾回收基于可达性，注意清理引用避免泄漏
 
 ## 延伸阅读

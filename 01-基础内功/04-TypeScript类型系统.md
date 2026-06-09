@@ -243,6 +243,117 @@ type Result = { success: true; data: User } | { success: false; error: string };
 }
 ```
 
+### 9. 条件类型与 infer
+
+```typescript
+// 条件类型 — T extends U ? X : Y
+type IsString<T> = T extends string ? true : false;
+
+// infer — 在 extends 子句中推断类型
+type ReturnType<T> = T extends (...args: any[]) => infer R ? R : never;
+
+type Parameters<T> = T extends (...args: infer P) => any ? P : never;
+
+// 提取 Promise 内部类型
+type Awaited<T> = T extends Promise<infer U> ? U : T;
+```
+
+### 10. 映射类型与模板字面量类型
+
+```typescript
+// 映射类型进阶 — 键重映射
+type Getters<T> = {
+  [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K];
+};
+
+// 模板字面量类型
+type EventName = 'click' | 'focus';
+type HandlerName = `on${Capitalize<EventName>}`; // 'onClick' | 'onFocus'
+
+type Route = `/${string}`;
+```
+
+### 11. keyof / typeof / 索引访问
+
+```typescript
+const user = { id: 1, name: 'Alice' };
+type User = typeof user;           // { id: number; name: string }
+type UserKeys = keyof User;        // 'id' | 'name'
+type UserName = User['name'];      // string
+
+function getProp<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+```
+
+### 12. 类型守卫与断言函数
+
+```typescript
+function isString(val: unknown): val is string {
+  return typeof val === 'string';
+}
+
+function assertIsNumber(val: unknown): asserts val is number {
+  if (typeof val !== 'number') throw new Error('Not a number');
+}
+
+function process(val: unknown) {
+  if (isString(val)) console.log(val.toUpperCase()); // val: string
+}
+```
+
+### 13. unknown 与 never
+
+```typescript
+// unknown — 安全的 any，使用前必须收窄
+function parse(input: unknown) {
+  if (typeof input === 'string') return JSON.parse(input);
+}
+
+// never — 永不存在的类型，穷尽检查
+type Shape = Circle | Square;
+function area(s: Shape): number {
+  switch (s.kind) {
+    case 'circle': return Math.PI * s.radius ** 2;
+    case 'square': return s.side ** 2;
+    default: {
+      const _exhaustive: never = s; // 新增类型时编译报错
+      return _exhaustive;
+    }
+  }
+}
+```
+
+### 14. 声明文件与 declare
+
+```typescript
+// global.d.ts
+declare global {
+  interface Window {
+    __APP_CONFIG__: { apiUrl: string };
+  }
+}
+
+// 模块声明 — 无类型的第三方库
+declare module 'legacy-lib' {
+  export function doSomething(): void;
+}
+```
+
+### 15. 枚举与 const enum
+
+```typescript
+enum Status { Pending, Success, Error }
+const enum Direction { Up, Down } // 编译时内联，无运行时对象
+
+// 推荐：联合字面量替代 enum（Tree Shaking 更好）
+type Status = 'pending' | 'success' | 'error';
+```
+
+### 16. 协变与逆变（简介）
+
+函数参数类型**逆变**（更宽），返回值**协变**（更窄）。`strictFunctionTypes` 下，`(x: Animal) => void` 不能赋给 `(x: Dog) => void`。理解此概念有助于读懂复杂泛型约束。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
@@ -266,6 +377,7 @@ type Result = { success: true; data: User } | { success: false; error: string };
 - 结构化类型：形状兼容即类型兼容
 - 泛型 + 约束实现类型安全的复用
 - 工具类型基于映射类型和条件类型
+- 条件类型 + infer 是高级类型编程核心
 - 用类型设计 API，是架构师约束代码质量的重要手段
 
 ## 延伸阅读

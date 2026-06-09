@@ -241,6 +241,98 @@ import styles from './Button.module.css';
 }
 ```
 
+### 8. 定位与层叠上下文
+
+```css
+/* position 取值 */
+.static   { position: static; }   /* 默认 */
+.relative { position: relative; top: 10px; } /* 相对自身偏移 */
+.absolute { position: absolute; } /* 相对最近定位祖先 */
+.fixed    { position: fixed; }    /* 相对视口 */
+.sticky   { position: sticky; top: 0; } /* 滚动到阈值后 fixed */
+```
+
+**层叠上下文：** 由 `position`+`z-index`、`opacity<1`、`transform`、`filter` 等创建。`z-index` 仅在同一层叠上下文内比较。
+
+### 9. 单位体系
+
+| 单位 | 说明 |
+|------|------|
+| `px` | 绝对像素 |
+| `rem` | 相对根元素 `html` font-size |
+| `em` | 相对当前元素 font-size |
+| `vw/vh` | 视口宽/高 1% |
+| `%` | 相对父元素 |
+
+```css
+html { font-size: 16px; }
+.title { font-size: 1.5rem; } /* 24px */
+.fluid { font-size: clamp(1rem, 2vw + 1rem, 2rem); } /* 流体排版 */
+```
+
+### 10. 居中方案汇总
+
+```css
+/* Flex */
+.center-flex { display: flex; justify-content: center; align-items: center; }
+
+/* Grid */
+.center-grid { display: grid; place-items: center; }
+
+/* 绝对定位 + transform */
+.center-abs {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+```
+
+### 11. transition / animation 与性能
+
+```css
+.box {
+  transition: transform 0.3s ease, opacity 0.3s;
+}
+.box:hover { transform: scale(1.05); } /* 仅合成层，性能好 */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate { animation: fadeIn 0.5s ease; }
+```
+
+避免动画 `width`/`height`/`top`/`left`，优先 `transform`/`opacity`。
+
+### 12. 现代 CSS 特性
+
+```css
+/* :has() — 父选择子 */
+.card:has(img) { padding-top: 0; }
+
+/* 原生嵌套（现代浏览器） */
+.card {
+  & .title { font-weight: bold; }
+}
+
+/* @layer — 层叠顺序控制 */
+@layer reset, base, components, utilities;
+
+/* 容器查询深入 */
+@container card (min-width: 400px) {
+  .card-body { display: grid; grid-template-columns: 1fr 1fr; }
+}
+```
+
+### 13. 预处理器与 PostCSS
+
+| 工具 | 作用 |
+|------|------|
+| Sass/Less | 变量、嵌套、混入，编译为 CSS |
+| PostCSS | 插件生态：Autoprefixer、cssnano、preset-env |
+
+现代项目常直接用 CSS Variables + 原生嵌套，PostCSS 仅做 autoprefixer 和压缩。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
@@ -263,7 +355,8 @@ import styles from './Button.module.css';
 - Flex 一维、Grid 二维，按场景选择
 - CSS 架构核心是**作用域隔离**与**命名规范**
 - Design Token 是设计系统的基础
-- Mobile First + 容器查询实现现代响应式
+- 定位、层叠上下文、单位体系是布局基础
+- Mobile First + 容器查询 + 现代 CSS 实现响应式
 
 ## 延伸阅读
 

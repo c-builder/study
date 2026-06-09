@@ -171,6 +171,63 @@ optimization: {
 // webpack-bundle-analyzer
 ```
 
+### 6. AST 与编译器
+
+```mermaid
+flowchart LR
+    Source[源码] --> Parse[Parse 解析 AST]
+    Parse --> Transform[Transform 转换]
+    Transform --> Generate[Generate 生成代码]
+```
+
+| 工具 | 特点 |
+|------|------|
+| Babel | 插件生态最全，JS 转换标准 |
+| SWC | Rust，极快 |
+| esbuild | Go，开发预构建 |
+
+### 7. Source Map 原理
+
+生成 `.map` 文件，映射压缩后行列到源码行列。生产环境上传至 Sentry，**不**公开给浏览器（避免源码泄露）。
+
+```javascript
+// webpack
+devtool: 'source-map'        // 完整 map
+devtool: 'hidden-source-map' // 无 //# sourceMappingURL
+```
+
+### 8. HMR 原理
+
+```mermaid
+sequenceDiagram
+    DevServer->>Browser: WebSocket 推送 hash 变更
+    Browser->>DevServer: 请求更新 chunk
+    DevServer-->>Browser: 新模块 + hotAccept 回调
+    Browser->>Browser: 替换模块，保留状态
+```
+
+Webpack HMR API：`module.hot.accept('./module', callback)`。Vite 基于 ESM，精确到单文件替换。
+
+### 9. Tree Shaking 原理
+
+1. ESM 静态 `import/export` 分析依赖图
+2. 标记使用的 export（usedExports）
+3. Dead Code Elimination 删除未引用代码
+4. `sideEffects: false` 允许更激进删除
+
+```javascript
+// utils.js
+export function used() {}
+export function unused() {} // 若 sideEffects: false 且未 import，会被删除
+```
+
+### 10. Rspack / Turbopack 与构建提速
+
+- **Rspack：** Rust 实现 Webpack 兼容 API，更快
+- **Turbopack：** Vercel，Rust，Next.js 开发模式
+- **持久缓存：** Webpack 5 `cache: { type: 'filesystem' }`
+- **并行：** thread-loader、esbuild minify
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

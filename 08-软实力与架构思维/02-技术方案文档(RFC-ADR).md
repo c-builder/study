@@ -195,6 +195,41 @@ docs/
 └── README.md  # 索引
 ```
 
+### 7. 系统设计文档与 C4 模型
+
+| 文档 | 内容 |
+|------|------|
+| 概要设计 | 架构图、模块划分、技术选型 |
+| 详细设计 | 接口、数据流、异常处理 |
+
+**C4 模型：**
+
+```mermaid
+flowchart TB
+    Context[Context 系统上下文]
+    Container[Container 容器/应用]
+    Component[Component 组件]
+    Code[Code 代码]
+    Context --> Container --> Component --> Code
+```
+
+### 8. UML 与评审会议
+
+常用图：时序图（接口调用）、状态图（订单状态机）、类图（领域模型）。
+
+**评审会议：**
+
+1. 作者 15 分钟讲解
+2. 评审人提前阅读，带问题
+3. 记录 open questions 和 action items
+4. Accepted / Rejected / Needs revision
+
+### 9. 文档驱动与知识库
+
+- RFC/ADR 与代码同 repo，PR 关联
+- Notion/Confluence 作索引，**源码旁文档**为准
+- 新人 onboarding 文档、runbook、故障复盘模板
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

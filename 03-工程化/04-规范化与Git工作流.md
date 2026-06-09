@@ -163,6 +163,57 @@ gitGraph
 - 禁止直接 push main
 - 分支保护规则
 
+### 6. Git 对象模型与三区域
+
+```mermaid
+flowchart LR
+    WD[Working Directory] -->|git add| Index[Staging Area]
+    Index -->|git commit| Repo[Repository .git]
+    Repo -->|git checkout| WD
+```
+
+| 对象 | 说明 |
+|------|------|
+| blob | 文件内容 |
+| tree | 目录结构 |
+| commit | 提交，含 tree + parent + message |
+| tag | 标签 |
+
+**rebase vs merge：**
+
+- **merge：** 保留分支历史，产生 merge commit
+- **rebase：** 变基到目标分支，历史线性，不改写已 push 的公共分支
+
+### 7. ESLint Flat Config 深入
+
+```javascript
+export default [
+  { files: ['**/*.ts'], languageOptions: { parser: tsParser } },
+  { rules: { 'no-unused-vars': 'off' } }
+];
+// 规则基于 AST 节点访问，自定义规则用 espree + visitor 模式
+```
+
+### 8. EditorConfig 与自动 Changelog
+
+```ini
+# .editorconfig
+root = true
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+```
+
+**release-please / changesets** 根据 Conventional Commits 自动生成 CHANGELOG 和版本 PR。
+
+### 9. Monorepo 增量 lint
+
+```bash
+# 仅 lint 变更包
+pnpm turbo run lint --filter=...[origin/main]
+```
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

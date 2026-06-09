@@ -147,6 +147,57 @@ pnpm changeset publish    # 发布到 npm
 - 对外组件库：独立版本，semver
 - 统一 lint/test 在根目录执行
 
+### 6. npm 依赖解析与幽灵依赖
+
+npm/yarn 扁平化 `node_modules` 时，A 的依赖可能被提升到顶层，B 可直接 `require` 未声明的包 → **幽灵依赖**。pnpm 通过 `.pnpm` 严格隔离，只能访问 `package.json` 声明的依赖。
+
+### 7. semver 与 lockfile
+
+| 符号 | 含义 | 示例 |
+|------|------|------|
+| `^1.2.3` | 兼容 minor/patch | `<2.0.0` |
+| `~1.2.3` | 兼容 patch | `<1.3.0` |
+| 精确 | 锁定 | `1.2.3` |
+
+**lockfile**（`pnpm-lock.yaml` / `package-lock.json`）锁定完整依赖树，CI 使用 `--frozen-lockfile` 保证可复现。
+
+### 8. peerDependencies
+
+```json
+{
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  }
+}
+```
+
+组件库声明 peer，避免打包多份 React。宿主项目负责安装匹配版本。
+
+### 9. npm scripts 与 npx
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  }
+}
+```
+
+`pnpm exec` 运行本地 bin，无需全局安装。
+
+### 10. Nx / Lerna 对比
+
+| 工具 | 特点 |
+|------|------|
+| Turborepo | 任务编排 + 远程缓存，轻量 |
+| Nx | 依赖图分析、代码生成、插件丰富 |
+| Lerna | 传统多包版本发布，现多与 Nx 集成 |
+
+### 11. 私有 registry
+
+Verdaccio、云厂商私有 npm，配合 `.npmrc`：`@myorg:registry=https://npm.example.com/`
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

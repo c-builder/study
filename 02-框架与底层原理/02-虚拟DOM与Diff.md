@@ -159,6 +159,55 @@ function mount(vnode, container) {
 }
 ```
 
+### 6. 最长递增子序列（Vue 3）
+
+Vue 3 列表 Diff 在 key 映射基础上，用 **LIS** 找出最长不需要移动的子序列，最小化 DOM 移动操作。时间复杂度 O(n log n)。
+
+```javascript
+// 简化：求最长递增子序列的下标
+function getSequence(arr) {
+  const p = arr.slice();
+  const result = [0];
+  for (let i = 0; i < arr.length; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      let j = result[result.length - 1];
+      if (arr[j] < arrI) { p[i] = j; result.push(i); continue; }
+      // 二分查找替换...
+    }
+  }
+  return result;
+}
+```
+
+### 7. JSX 编译
+
+```jsx
+// JSX
+<div className="box">{title}</div>
+
+// 编译后（React 17+ 自动 runtime）
+import { jsx as _jsx } from 'react/jsx-runtime';
+_jsx('div', { className: 'box', children: title });
+
+// Vue 编译为 render 函数 + h()
+h('div', { class: 'box' }, title);
+```
+
+### 8. Vue 3 PatchFlag 与 Block Tree
+
+编译时标记动态节点（PatchFlag），Block Tree 将静态子树一次性跳过：
+
+```javascript
+// 编译结果示意 — 仅 TEXT 节点需 patch
+const _hoisted = /*#__PURE__*/ _createElementVNode('div', null, 'static');
+// 动态部分带 patchFlag: PatchFlags.TEXT
+```
+
+### 9. 无 VDOM 趋势（Svelte）
+
+Svelte 编译时将组件编译为**直接操作 DOM 的 imperative 代码**，无运行时 VDOM，包体积更小。Solid 类似。架构师需了解「编译时优化」与「运行时 VDOM」的权衡。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

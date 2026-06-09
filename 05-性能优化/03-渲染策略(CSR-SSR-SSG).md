@@ -159,6 +159,32 @@ flowchart TD
 
 减少 TTFB，渐进式展示内容。
 
+### 7. Hydration 问题与新范式
+
+**Hydration mismatch：** 服务端 HTML 与客户端首次 render 不一致会导致报错或闪烁。
+
+| 方案 | 说明 |
+|------|------|
+| Partial Hydration | 仅交互组件 hydrate |
+| Islands（Astro） | 静态 HTML + 独立交互岛屿 |
+| Selective Hydration | 按优先级/可见性 hydrate |
+| Resumability（Qwik） | 序列化状态，无需 replay 事件 |
+
+### 8. RSC 与 Edge Rendering
+
+**React Server Components：** 默认服务端组件，零客户端 bundle；`'use client'` 标记客户端组件。
+
+**Edge：** 在 CDN 边缘节点执行 SSR，降低 TTFB（Vercel Edge、Cloudflare Workers）。
+
+### 9. SSR 缓存与 SEO
+
+```javascript
+// CDN 缓存 SSR 页面 — Cache-Control + surrogate-key
+res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+```
+
+**SEO：** `<title>`、`<meta description>`、Open Graph、JSON-LD 结构化数据、sitemap.xml、robots.txt。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
