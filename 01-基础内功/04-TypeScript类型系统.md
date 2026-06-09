@@ -400,6 +400,83 @@ const user = UserSchema.parse(await res.json()); // 边界外数据必校验
 - **After：** 共享 `@repo/types`，改接口编译期全项目报错
 - **验证：** `pnpm build` 0 error；IDE 跳转定义正常
 
+---
+
+## 进阶运用：类型驱动的真实场景
+
+### 1. 用 discriminated union 建模请求状态机
+
+```typescript
+// 把「加载中/成功/失败」做成互斥状态，杜绝非法组合（如 loading 又有 data）
+type Async<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: string };
+
+function render(state: Async<User>) {
+  switch (state.status) {
+    case 'success': return state.data.name; // 此分支才有 data
+    case 'error':   return state.error;     // 此分支才有 error
+    default:        return 'loading...';
+  }
+}
+```
+
+### 2. 用泛型约束封装类型安全的工具
+
+```typescript
+// 事件总线：事件名与 payload 类型强绑定
+type Events = { login: { userId: string }; logout: void };
+
+class Bus<E extends Record<string, any>> {
+  on<K extends keyof E>(name: K, fn: (p: E[K]) => void) {}
+  emit<K extends keyof E>(name: K, payload: E[K]) {}
+}
+const bus = new Bus<Events>();
+bus.emit('login', { userId: '1' }); // 错传 payload 直接编译报错
+```
+
+### 3. 类型与运行时的边界（最易踩坑）
+
+```typescript
+// TS 只在编译期存在，外部数据（接口/localStorage/URL）运行时不可信
+const raw = JSON.parse(localStorage.getItem('user')!); // any，骗过编译器
+// 正确：边界处用 zod 校验后再获得可信类型
+const user = UserSchema.parse(raw); // 运行时校验 + 类型推断双保险
+```
+
+---
+
+## 排查实战
+
+### 案例 A：读不懂的类型报错
+
+- **现象：** `Type 'X' is not assignable to type 'Y'` 一大段嵌套报错
+- **方法：** 从**最内层**「Types of property 'xxx' are incompatible」往外读；用 IDE hover 看展开类型；用辅助类型 `type _ = X` 临时定位
+- **验证：** 定位到具体不兼容属性后修正
+
+### 案例 B：any 悄悄蔓延
+
+- **现象：** 某处 `as any` 后，下游全失去类型保护
+- **定位：** 开启 `noImplicitAny`；ESLint `@typescript-eslint/no-explicit-any` 报警
+- **修复：** 改 `unknown` + 类型守卫收窄，或补全类型
+- **验证：** 移除 any 后下游恢复补全与检查
+
+### 案例 C：第三方库无类型声明
+
+- **现象：** `Could not find a declaration file for module 'xxx'`
+- **修复：** 装 `@types/xxx`；没有则写 `declare module 'xxx'` 兜底
+- **验证：** 导入不再报错，关键 API 有类型
+
+### 案例 D：类型体操过度，编译变慢/难维护
+
+- **现象：** 多层条件类型嵌套，IDE 卡、报错天书
+- **修复：** 拆分中间类型加注释；能用简单类型就别炫技
+- **验证：** 类型可读，`tsc` 速度恢复
+
+---
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
@@ -416,6 +493,45 @@ const user = UserSchema.parse(await res.json()); // 边界外数据必校验
 - 使用 discriminated union 建模状态机
 - 复杂类型提取为独立 type，加 JSDoc 注释
 - 架构层面：共享类型包（monorepo 中的 `@repo/types`）
+
+**可执行清单：**
+
+- [ ] `tsconfig` 开启 `strict`、`noImplicitAny`、`strictNullChecks`
+- [ ] 禁止 `any`，未知数据用 `unknown` + 类型守卫
+- [ ] 外部数据（接口/storage/URL）边界用 zod 等运行时校验
+- [ ] 互斥状态用 discriminated union + `never` 穷尽检查
+- [ ] 公共类型抽到共享包，避免重复定义
+- [ ] ESLint 接入 `@typescript-eslint`，CI 跑 `tsc --noEmit`
+
+## 手写工具类型（面试高频）
+
+```typescript
+type MyPick<T, K extends keyof T> = { [P in K]: T[P] };
+type MyOmit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type DeepReadonly<T> = T extends object
+  ? { readonly [P in keyof T]: DeepReadonly<T[P]> } : T;
+type GetReturnType<T> = T extends (...args: unknown[]) => infer R ? R : never;
+```
+
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：类型系统基础
+
+1. **概念**：interface 和 type 区别？→ interface 可声明合并、extends；type 可联合/交叉/映射/条件类型。
+2. **机制**：什么是结构化类型？→ 看形状不看名义（鸭子类型），属性满足即兼容。
+3. **边界**：协变和逆变？→ 返回值协变（可更具体）、参数逆变（可更宽）；TS 默认方法参数双变。
+4. ⭐ **原理（触底）**：类型在运行时存在吗？怎么保证运行时安全？→ 编译后类型擦除，运行时不存在；外部数据需 Zod/io-ts 等运行时校验。
+5. **实战（落地）**：接口数据怎么保证类型安全？→ 定义 Zod schema 校验 API 响应，校验失败上报并降级；CI 跑 tsc --noEmit 门禁；改接口后 schema 与类型同步更新，单测覆盖异常 payload。
+
+### 链二：高级类型与类型编程
+
+1. **概念**：unknown / never / any 区别？→ unknown 需收窄才能用；never 不可达/空集；any 放弃检查。
+2. **机制**：条件类型 + infer 怎么用？→ `T extends (...args)=>infer R ? R : never` 提取返回值。
+3. **应用**：手写一个 DeepReadonly？→ 映射类型 + 递归（见本章手写工具类型）。
+4. ⭐ **原理（触底）**：类型体操过度有什么代价？→ 编译变慢、报错难读、维护成本高；架构上应权衡类型安全与可读性。
+5. **实战（落地）**：团队怎么控制 TS 复杂度？→ 公共类型放 shared 包、业务用 infer 工具类型而非嵌套三层；设编译耗时基线；CR 拒绝无收益的体操，优先 Zod + 简单泛型。
 
 ## 小结
 

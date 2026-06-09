@@ -230,6 +230,33 @@ pnpm add -D turbo typescript -w
 - 根目录统一 ESLint、TypeScript、Prettier
 - CI 用 turbo run build --filter=...[changed]
 
+## pnpm 原理深挖
+
+- **content-addressable store**：全局存储包内容，硬链接到 node_modules
+- **软链接**：`.pnpm` 虚拟 store 用符号链接组织依赖树
+- **严格模式**：只能访问 package.json 声明的依赖，杜绝幻影依赖
+- **大规模治理**：`turbo run --filter=...[origin/main]` 只构建变更包
+
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：pnpm 原理
+
+1. **概念**：pnpm 为什么省磁盘？→ 全局 store + 硬链接，同版本只存一份。
+2. **机制**：node_modules 结构？→ 扁平 `.pnpm` 存真实包，软链接构建嵌套依赖树。
+3. **边界**：幻影依赖是什么？pnpm 怎么治？→ npm 扁平化使未声明依赖可被引用；pnpm 严格隔离只暴露直接依赖。
+4. ⭐ **原理（触底）**：硬链接 vs 软链接在 pnpm 里分别用在哪？→ 硬链接把 store 文件链接进 `.pnpm`（共享内容、零拷贝）；软链接把依赖软链到包目录构建依赖关系（保证 require 解析正确）。
+5. **实战（落地）**：团队从 npm/yarn 迁到 pnpm 你怎么落地？→ CI 安装慢 + 磁盘占用高 + 幽灵依赖偶发线上报错，落地 `pnpm import` 转 lockfile + 统一 `.npmrc` + 修复被严格模式暴露的未声明依赖；验证 `pnpm install --frozen-lockfile` CI 可复现、安装时长下降、`pnpm why` 单版本；结果磁盘占用降、幽灵依赖类 bug 归零。
+
+### 链二：Monorepo 治理
+
+1. **概念**：Monorepo 优势与成本？→ 代码共享、原子提交、统一工具链；成本在治理与构建放大。
+2. **机制**：Turborepo 怎么加速？→ 任务编排 + 内容哈希缓存，命中跳过重复构建。
+3. **应用**：Changesets 做什么？→ 多包版本管理、生成 changelog、发版 PR。
+4. ⭐ **原理（触底）**：大型 Monorepo 构建变慢怎么治理？→ 增量构建 + 远程缓存（Turbo Remote Cache）+ 受影响包检测（affected）+ CI 任务分片，避免全量构建。
+5. **实战（落地）**：你怎么治理一个变慢的大型 Monorepo？→ 全量构建 20 分钟，落地 Turborepo 任务编排 + 远程缓存 + `--filter=...[origin/main]` 只构建受影响包 + CI 分片并行；验证命中缓存的包直接跳过、改一个叶子包只构建其下游、Changesets 管多包发版；结果 PR CI 从 20 分钟降到 3-5 分钟。
+
 ## 小结
 
 - pnpm 通过 store + 硬链接省磁盘、防幽灵依赖

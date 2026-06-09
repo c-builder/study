@@ -243,6 +243,49 @@ echo "pnpm exec commitlint --edit \$1" > .husky/commit-msg
 - CI 全量 lint + test，与本地一致
 - 文档化分支策略和 CR 规范
 
+## 手写 ESLint 规则（AST）
+
+```javascript
+module.exports = {
+  create(context) {
+    return {
+      CallExpression(node) {
+        if (node.callee.name === 'eval') {
+          context.report({ node, message: '禁止使用 eval' });
+        }
+      },
+    };
+  },
+};
+```
+
+## Git 对象模型（简述）
+
+- **blob**：文件内容
+- **tree**：目录结构
+- **commit**：指向 tree + 父 commit + 元信息
+- **ref**：分支/标签指针
+
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：Git 工作流
+
+1. **概念**：Git Flow vs Trunk Based？→ Git Flow 多分支适合版本发布；Trunk 适合持续部署。
+2. **机制**：rebase 和 merge 区别？→ rebase 线性历史、merge 保留分叉。
+3. **边界**：rebase 有什么风险？→ 改写历史，已推送的公共分支不能 rebase。
+4. ⭐ **原理（触底）**：Git 怎么存储一次 commit？→ 内容寻址对象库：blob(文件)→tree(目录)→commit(指向 tree+父 commit)，SHA-1 去重，分支是指向 commit 的可变指针（见本章对象模型）。
+5. **实战（落地）**：团队 Git 工作流和分支保护你怎么落地的？→ 多人协作分支混乱、误推 main，落地 Trunk Based + 短分支 + PR 必过 CI（lint/test/build）+ 至少 1 approve + 禁止直推 main 的分支保护；验证直推被拒、未过 CI 无法合并、release-please 自动出版本 PR；结果发布可追溯、回滚有据、main 始终可发布。
+
+### 链二：规范化工具链
+
+1. **概念**：lint-staged 做什么？→ 只检查暂存区文件，加速 pre-commit。
+2. **机制**：Husky 怎么挂钩子？→ 安装 Git hooks 指向脚本，提交时触发。
+3. **应用**：Conventional Commits 格式与价值？→ `type(scope): subject`，可自动生成 changelog/版本。
+4. ⭐ **原理（触底）**：ESLint 怎么工作的？怎么写一条自定义规则？→ 源码 parse 成 AST，规则在 traverse 时监听节点类型并 report/fix（见本章手写 AST 规则）。
+5. **实战（落地）**：你怎么落地一套规范工具链并让团队接受？→ diff 噪音大、commit 信息混乱，落地 ESLint+Prettier+Stylelint + Husky+lint-staged（只查暂存区）+ commitlint 约束 Conventional Commits；验证提交 `console.log` 被 pre-commit 拦截、`fix bug` 被 commitlint 拒绝、CI 全量 lint 与本地一致；结果 CR 聚焦逻辑、changelog 自动生成、代码风格统一。
+
 ## 小结
 
 - ESLint 质量、Prettier 格式、Stylelint 样式

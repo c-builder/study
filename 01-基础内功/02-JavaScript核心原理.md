@@ -235,6 +235,82 @@ const cache = [];
 - [ ] 长列表/Modal 测 Memory
 - [ ] 手写 new/bind 理解一次
 
+## 手写实现（面试必考）
+
+### new / call / bind / instanceof
+
+```javascript
+function myNew(Ctor, ...args) {
+  const obj = Object.create(Ctor.prototype);
+  const ret = Ctor.apply(obj, args);
+  return ret instanceof Object ? ret : obj;
+}
+
+Function.prototype.myBind = function (ctx, ...preset) {
+  const fn = this;
+  return function (...args) {
+    if (new.target) return new fn(...preset, ...args);
+    return fn.apply(ctx, [...preset, ...args]);
+  };
+};
+
+function myInstanceof(obj, Ctor) {
+  let p = Object.getPrototypeOf(obj);
+  while (p) {
+    if (p === Ctor.prototype) return true;
+    p = Object.getPrototypeOf(p);
+  }
+  return false;
+}
+```
+
+### 寄生组合继承
+
+```javascript
+function inherit(Child, Parent) {
+  Child.prototype = Object.create(Parent.prototype);
+  Child.prototype.constructor = Child;
+  Object.setPrototypeOf(Child, Parent);
+}
+```
+
+### this 四条判定规则
+
+1. new → 指向新对象
+2. call/apply/bind → 指向指定对象
+3. 对象方法 → 指向调用对象
+4. 默认 → 严格模式 undefined，非严格 globalThis
+
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：原型与原型链
+
+1. **概念**：原型链是什么？→ 对象 `__proto__` 指向构造函数 `prototype`，逐层向上，终点 `Object.prototype.__proto__ === null`。
+2. **机制**：属性查找过程？→ 自身 → 原型 → 原型的原型，找不到返回 undefined。
+3. **边界**：`new` 做了什么？→ 创建对象、链接原型、绑 this 执行、返回（构造函数返回对象则用它）。
+4. **应用**：怎么实现继承？→ 寄生组合继承（`Object.create(Parent.prototype)` + 修正 constructor）。
+5. ⭐ **原理（触底）**：`class` 的本质？为什么说是语法糖但不完全等价？→ 底层仍是原型；但 class 不可提升、内部严格模式、方法不可枚举、必须 new 调用。
+6. **实战（落地）**：`instanceof` 跨 iframe 失效怎么在项目里处理？→ 微前端/嵌入页统一用 `Array.isArray`/toString 判型；SDK 对外暴露类型守卫函数，避免跨 realm instanceof；单测覆盖 iframe 场景。
+
+### 链二：闭包
+
+1. **概念**：闭包是什么？→ 函数 + 其引用的词法环境。
+2. **机制**：为什么能访问外部变量？→ 函数 `[[Environment]]` 持有定义时的作用域链。
+3. **边界**：闭包一定内存泄漏吗？→ 否，未释放的引用才泄漏。
+4. **应用**：闭包用在哪？→ 模块私有状态、柯里化、防抖节流、React Hooks。
+5. ⭐ **原理（触底）**：循环里 `var` + setTimeout 全打印同值，为什么？怎么修？→ var 函数作用域共享同一变量；改 let（块级，每轮新绑定）或 IIFE 传参。
+6. **实战（落地）**：React 里 stale closure 怎么产生、怎么解？→ 定时器/回调捕获旧 state；deps 补全、函数式 setState、useRef 存最新值；React DevTools Profiler 复现后改 deps 验证不再复现。
+
+### 链三：this 与类型判断
+
+1. **概念**：this 由什么决定？→ 调用方式，不是定义位置。
+2. **机制**：四条规则？→ new > 显式 call/apply/bind > 方法调用 > 默认（严格 undefined）。
+3. **边界**：箭头函数的 this？→ 无 own this，词法绑定外层，不能 new、无 arguments。
+4. ⭐ **原理（触底）**：`Object.prototype.toString.call` 为什么最准？→ 读取内部 `[[Class]]`/Symbol.toStringTag，能区分 Array/Date/null 等 typeof 无法区分的类型。
+5. **实战（落地）**：工具库里怎么做可靠类型判断？→ 封装 `getType(val)` 用 toString + 自定义 tag；表单/接口层统一调用；单测覆盖 null/Date/跨 iframe Array，避免散落 typeof 误判。
+
 ## 小结
 
 - Scope 面板验证闭包；Heap snapshot 查泄漏

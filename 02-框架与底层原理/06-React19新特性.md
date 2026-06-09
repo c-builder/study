@@ -353,6 +353,26 @@ npm install react@19 react-dom@19
 - [ ] 评估接入 React Compiler（先小范围）
 - [ ] 新组件不再写 `forwardRef`，`ref` 直接当 prop
 
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：use 与 Actions
+
+1. **概念**：use() 和 useEffect 区别？→ use 读 Promise/Context，可在条件中调用，不管理副作用。
+2. **机制**：Actions 解决什么？→ 表单 pending/error/optimistic 自动化，减少样板。
+3. **应用**：useOptimistic 怎么用？→ 立即渲染乐观值，请求结束自动以真实值替换/回滚。
+4. ⭐ **原理（触底）**：use(promise) 怎么和 Suspense 协作？为什么能在条件里调用而 Hook 不行？→ use 抛出 promise 触发 Suspense 边界、resolve 后重渲染；它不依赖固定调用顺序的 Hook 链表，故可条件调用。
+5. **实战（落地）**：表单提交态怎么从 useState 迁到 Actions？→ 用 useActionState + useFormStatus 替换 pending/error 样板；E2E 测提交中禁用与失败回滚；代码行数减少、状态分支更清晰。
+
+### 链二：编译器与 RSC
+
+1. **概念**：React Compiler 原理？→ 编译期分析依赖自动 memo，省手写 useMemo/useCallback。
+2. **机制**：它对代码有什么要求？→ 必须遵守 Rules of React（纯渲染、不可变）。
+3. **边界**：RSC 和 SSR 区别？→ RSC 服务端组件零客户端 JS、不可有状态；SSR 仍需 hydration。
+4. ⭐ **原理（触底）**：RSC 怎么把服务端组件结果传给客户端并与客户端组件混合？→ 序列化为 RSC Payload（特殊流式格式）流式传输，客户端按引用占位「拼接」Server/Client 组件树，减少 bundle 与瀑布。
+5. **实战（落地）**：Next App Router 里 RSC 怎么渐进采用？→ 静态展示页先 Server Component、交互块标 `'use client'`；对比 bundle analyzer 客户端 JS 下降；监控 TTFB 与 hydration 错误率。
+
 ## 小结
 
 - React 19 主线：用 Actions/`use`/Compiler 消除胶水代码

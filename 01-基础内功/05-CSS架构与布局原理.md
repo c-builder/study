@@ -382,6 +382,97 @@ Elements → Computed → 展开 box model，看 margin 折叠、padding 是否�
 - 设计系统：Token + CSS Variables，支持主题切换
 - 避免全局 CSS 无约束增长，建立 Stylelint 规则
 
+## 经典布局手撕（面试高频）
+
+### 水平垂直居中
+
+```css
+/* Flex（推荐） */
+.center { display: flex; justify-content: center; align-items: center; }
+
+/* Grid */
+.center { display: grid; place-items: center; }
+
+/* 绝对定位 + transform */
+.center { position: relative; }
+.center .child {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+```
+
+### 两栏布局（左固定右自适应）
+
+```css
+.layout { display: flex; }
+.sidebar { width: 200px; flex-shrink: 0; }
+.main { flex: 1; }
+```
+
+### 三栏布局（双飞翼）
+
+```html
+<div class="container">
+  <div class="main-wrap"><div class="main">主内容</div></div>
+  <div class="left">左</div>
+  <div class="right">右</div>
+</div>
+```
+
+```css
+.container { overflow: hidden; }
+.main-wrap { float: left; width: 100%; }
+.main { margin: 0 200px; }
+.left { float: left; width: 200px; margin-left: -100%; }
+.right { float: left; width: 200px; margin-left: -200px; }
+```
+
+### 1px 边框问题（Retina）
+
+```css
+.border-1px {
+  position: relative;
+}
+.border-1px::after {
+  content: ''; position: absolute; inset: 0;
+  border: 1px solid #ccc;
+  transform: scaleY(0.5);
+  transform-origin: 0 0;
+}
+```
+
+### BFC 触发与应用
+
+- 触发：`overflow: hidden`、`display: flow-root`、`float`、`position: absolute`
+- 应用：清除浮动、阻止 margin 折叠、自适应两栏
+
+## 面试高频问答（追问链）
+
+> 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
+
+### 链一：BFC 与布局
+
+1. **概念**：BFC 是什么？→ 块级格式化上下文，内部布局与外界隔离。
+2. **机制**：怎么触发？→ overflow 非 visible、display:flow-root、float、绝对定位。
+3. **应用**：解决什么问题？→ 清除浮动、阻止 margin 折叠、自适应两栏。
+4. ⭐ **原理（触底）**：margin 折叠为什么发生？怎么彻底避免？→ 同一 BFC 内相邻块垂直 margin 合并；用 flow-root 隔离或改 padding。
+5. **实战（落地）**：两栏布局 footer 高度不对怎么修？→ DevTools 查 margin 折叠；父级加 `display:flow-root` 或改 padding；改前后截图对比，多端验收。
+
+### 链二：层叠上下文与 z-index
+
+1. **概念**：z-index 为什么有时不生效？→ 只在同一层叠上下文内比较。
+2. **机制**：什么创建层叠上下文？→ 根元素、定位+z-index、transform、opacity<1、filter、will-change。
+3. **应用**：Modal 被父级挡住怎么办？→ 父级有 transform 形成新上下文；用 Portal 挂到 body。
+4. ⭐ **原理（触底）**：为什么 transform 既影响层叠又影响合成层？→ 两者都源于它创建独立渲染层，是合成优化的副作用。
+5. **实战（落地）**：Modal 被挡住怎么快速定位？→ Elements 向上查父级 transform/opacity；改 Portal 挂 body + z-index；Layers 面板确认层级，键盘 Tab 验证可聚焦。
+
+### 链三：布局选型与适配
+
+1. **概念**：Flex 和 Grid 怎么选？→ 一维 Flex，二维 Grid。
+2. **应用**：移动端适配方案？→ rem(flexible)、vw/vh、媒体查询，现推荐 vw + clamp。
+3. ⭐ **原理（触底）**：1px 边框在 Retina 为什么变粗？怎么解？→ CSS 像素 ≠ 物理像素，dpr>1 时 1px 占多个物理像素；用 transform: scaleY(0.5) 伪元素或 0.5px。
+4. **实战（落地）**：移动端 1px 方案怎么选型落地？→ 列表分割线用伪元素 scale；边框组件封装 hairline 类；真机 dpr=2/3 截图对比，设计走查验收。
+
 ## 小结
 
 - 盒模型用 `border-box`，BFC 解决浮动与 margin 问题
