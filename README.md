@@ -168,12 +168,15 @@ flowchart TD
 
 | 章节 | 主题 |
 |------|------|
-| [01-AI大模型前端应用](./09-前沿与拓展/01-AI大模型前端应用.md) | SSE/RAG/Agent/MCP |
-| [02-可视化与图形渲染](./09-前沿与拓展/02-可视化与图形渲染.md) | Canvas/SVG/WebGL |
-| [03-WebAssembly与高性能计算](./09-前沿与拓展/03-WebAssembly与高性能计算.md) | WASM/Emscripten |
-| [04-实时通信](./09-前沿与拓展/04-实时通信(WebSocket-SSE-WebRTC).md) | WS/SSE/WebRTC |
-| [05-浏览器存储与离线](./09-前沿与拓展/05-浏览器存储与离线(IndexedDB-PWA).md) | IndexedDB/PWA |
-| [06-国际化与无障碍](./09-前沿与拓展/06-国际化与无障碍(i18n-a11y).md) | i18n/a11y |
+| [01-AI大模型前端应用](./09-前沿与拓展/01-AI大模型前端应用.md) | SSE/RAG/Agent/MCP/多模态 |
+| [08-大模型发展史与底层原理](./09-前沿与拓展/08-大模型发展史与底层原理.md) | 发展史/Transformer/训练推理/2026前沿/知识体系 |
+| [09-AI-Agent-Skills与MCP协议详解](./09-前沿与拓展/09-AI-Agent-Skills与MCP协议详解.md) | Skills/MCP/Tool/MCP Apps/安全/追问链 |
+| [02-可视化与图形渲染](./09-前沿与拓展/02-可视化与图形渲染.md) | Canvas/SVG/WebGL/四叉树 |
+| [03-WebAssembly与高性能计算](./09-前沿与拓展/03-WebAssembly与高性能计算.md) | WASM/Emscripten/COOP |
+| [04-实时通信](./09-前沿与拓展/04-实时通信(WebSocket-SSE-WebRTC).md) | WS/SSE/WebRTC/协同 |
+| [05-浏览器存储与离线](./09-前沿与拓展/05-浏览器存储与离线(IndexedDB-PWA).md) | IndexedDB/OPFS/PWA |
+| [06-国际化与无障碍](./09-前沿与拓展/06-国际化与无障碍(i18n-a11y).md) | i18n/a11y/SEO/合规 |
+| [07-WebGPU与新一代图形](./09-前沿与拓展/07-WebGPU与新一代图形.md) | WebGPU/WGSL/Compute |
 
 ---
 

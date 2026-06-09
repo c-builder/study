@@ -106,6 +106,82 @@ sequenceDiagram
 | 重复消息 | 幂等 ID 去重 |
 | 离线消息 | 上线后拉取增量（lastSeq） |
 
+## 六、fetch ReadableStream vs EventSource
+
+| 方式 | 优势 | 劣势 |
+|------|------|------|
+| EventSource | 自动重连、Last-Event-ID | 仅 GET、不能 POST body |
+| fetch + ReadableStream | POST body、自定义头、AbortController | 需手写解析与重连 |
+
+AI 流式推荐 fetch + ReadableStream（见 [01-AI大模型前端应用](./01-AI大模型前端应用.md)）；推送通知类可用 EventSource。
+
+## 七、协同编辑与 OT/CRDT 简述
+
+实时协同（见 [04-前端系统设计专题](../04-架构设计/04-前端系统设计专题.md)）：
+
+- **OT**：中心化服务端转换操作，Google Docs 类
+- **CRDT**：去中心化无冲突合并，本地优先/离线友好
+- **前端**：WebSocket 传操作增量，本地先应用（乐观），远端光标独立层渲染
+
+## 八、WebRTC 最小示例
+
+```javascript
+const pc = new RTCPeerConnection({
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+});
+
+// 本地媒体
+const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+// 信令（经 WebSocket）
+ws.onmessage = async ({ data }) => {
+  const msg = JSON.parse(data);
+  if (msg.type === 'offer') {
+    await pc.setRemoteDescription(msg.sdp);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    ws.send(JSON.stringify({ type: 'answer', sdp: answer }));
+  }
+  if (msg.type === 'ice') await pc.addIceCandidate(msg.candidate);
+};
+
+pc.onicecandidate = (e) => {
+  if (e.candidate) ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
+};
+
+pc.ontrack = (e) => { remoteVideo.srcObject = e.streams[0]; };
+```
+
+## 排查实战
+
+### 案例 A：WebSocket 频繁断连
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | 弱网下每分钟断一次 |
+| 定位 | 无心跳，NAT/代理超时；或重连无退避导致风暴 |
+| 解决 | 30s ping + 指数退避+jitter 重连 |
+| 验证 | Network 模拟 offline/online，连接恢复<3s |
+
+### 案例 B：wss 连接失败
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | HTTPS 页面 ws:// 连不上 |
+| 定位 | 混合内容被浏览器拦截 |
+| 解决 | 统一 wss://，证书有效 |
+| 验证 | Console 无 Mixed Content 警告 |
+
+### 案例 C：WebRTC 黑屏
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | 信令成功但无画面 |
+| 定位 | ICE 失败，无 TURN 兜底 |
+| 解决 | 配 TURN 中继，对称 NAT 场景必用 |
+| 验证 | `chrome://webrtc-internals` 看 candidate 类型 |
+
 ## 面试高频问答（追问链）
 
 > 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
@@ -125,6 +201,15 @@ sequenceDiagram
 3. **边界**：WebRTC 连不通怎么办？→ NAT 穿透失败时经 TURN 中继兜底。
 4. ⭐ **原理（触底）**：三种实时方案怎么按场景选？→ 服务端单向推送/AI 流式用 SSE；双向高频(IM/协同)用 WS；低延迟音视频/P2P 用 WebRTC，必要时组合(WS 做信令 + WebRTC 传流)。
 5. **实战（落地）**：三种实时方案按场景你怎么组合落地？→ 场景：在线教育(聊天+直播+连麦)；步骤：IM 用 WS 双向(聊天/信令)、课程通知/AI 助教回复用 SSE 流式、音视频连麦用 WebRTC(WS 做 SDP/ICE 信令)+TURN 兜底；验证：弱网降级(WebRTC→仅音频→文字)、各通道独立重连互不影响；结果：聊天延迟<200ms、AI 流式首字<500ms、连麦 P2P 直连率 85% TURN 兜底 15%。
+
+## 常见误区
+
+| 误区 | 正确理解 |
+|------|---------|
+| "WebSocket 不用心跳" | NAT/代理会静默断开，必须心跳+重连 |
+| "HTTPS 页面可用 ws://" | 必须 wss://，否则混合内容拦截 |
+| "WebRTC 不需要信令" | P2P 前必须交换 SDP/ICE |
+| "重连立即重试" | 指数退避+jitter，防重连风暴 |
 
 ## 小结
 

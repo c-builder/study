@@ -105,6 +105,86 @@ worker.onmessage = (e) => updateCanvas(e.data);
 // wasm-worker.js：在 Worker 中加载 WASM，不阻塞主线程
 ```
 
+## 七、WASM Component Model 与 wasm-gc
+
+**Component Model**（2024+）：把 WASM 模块封装为可组合组件，接口用 WIT 描述，跨语言互操作更标准。
+
+| 演进 | 说明 |
+|------|------|
+| 传统 WASM | 线性内存 + 手动胶水 |
+| wasm-gc | 语言级对象/字符串，减少手动内存管理 |
+| Component Model | 模块化组合，类似「WASM 的 npm」 |
+
+架构师关注点：工具链仍在演进，生产落地评估团队 Rust/C++ 能力与浏览器支持矩阵。
+
+## 八、COOP/COEP 跨域隔离落地
+
+多线程 WASM（SharedArrayBuffer）需要：
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+**Nginx 示例**：
+
+```nginx
+add_header Cross-Origin-Opener-Policy same-origin;
+add_header Cross-Origin-Embedder-Policy require-corp;
+```
+
+**验证**：`crossOriginIsolated === true`；否则 `SharedArrayBuffer` 不可用。
+
+第三方资源需 `Cross-Origin-Resource-Policy: cross-origin` 或改同源托管。
+
+## 手写实现：最小 WASM 加载
+
+```javascript
+async function loadWasm(url, imports = {}) {
+  const response = await fetch(url);
+  if (!WebAssembly.instantiateStreaming) {
+    const bytes = await response.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(bytes, imports);
+    return instance;
+  }
+  const { instance } = await WebAssembly.instantiateStreaming(response, imports);
+  return instance;
+}
+
+// 使用
+const instance = await loadWasm('/add.wasm');
+console.log(instance.exports.add(2, 3)); // 5
+```
+
+## 排查实战
+
+### 案例 A：SharedArrayBuffer is not defined
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | 多线程 WASM 初始化失败 |
+| 定位 | `crossOriginIsolated` 为 false |
+| 解决 | 配 COOP/COEP 响应头，第三方资源加 CORP |
+| 验证 | 控制台 `crossOriginIsolated === true` |
+
+### 案例 B：.wasm 404 或 MIME 错误
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | `instantiateStreaming` 失败 |
+| 定位 | 服务器返回 `application/octet-stream` 或路径错误 |
+| 解决 | Nginx `types { application/wasm wasm; }` |
+| 验证 | Network 看 Content-Type 为 `application/wasm` |
+
+### 案例 C：比 JS 还慢
+
+| 步骤 | 动作 |
+|------|------|
+| 读懂 | 小数据量 WASM 反而慢 |
+| 定位 | 冷启动 + 频繁跨边界调用 |
+| 解决 | 批量传数据到线性内存，减少调用次数 |
+| 验证 | Benchmark 数据量超过阈值后 WASM 领先 |
+
 ## 面试高频问答（追问链）
 
 > 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
@@ -125,11 +205,21 @@ worker.onmessage = (e) => updateCanvas(e.data);
 3. ⭐ **原理（触底）**：一个典型落地场景(如音视频/图像处理)你怎么设计 JS+WASM 架构？→ 重计算放 WASM(在 Worker 中)、UI/DOM 留 JS 主线程、共享内存传帧数据、用消息控制，兼顾性能与不卡 UI。
 4. **实战（落地）**：音视频/图像处理 JS+WASM 架构你怎么落地？→ 场景：浏览器端视频缩略图提取；步骤：FFmpeg.wasm 放 Worker 解码帧 → 共享内存传帧数据到主线程 Canvas 预览、主线程只管 UI/进度条；验证：4K 视频抽帧主线程 INP 不受影响；结果：无需服务端转码即可完成客户端预览，首帧<2s。
 
+## 常见误区
+
+| 误区 | 正确理解 |
+|------|---------|
+| "WASM 一定比 JS 快" | 小任务冷启动+胶水开销可能更慢，需 Benchmark |
+| "WASM 能直接操作 DOM" | 必须经 JS imports，DOM 密集不适合 |
+| "忽略 COOP/COEP" | 多线程 WASM 依赖跨域隔离 |
+| "每次调用传大对象" | 用共享线性内存批量传，减少跨边界 |
+
 ## 小结
 
 - WASM = 近原生速度 + 复用 C/Rust 生态，通过 JS 胶水访问 Web API
 - 适用计算密集；不适用 DOM 密集和简单逻辑
 - 优化：流式编译、Worker、减少跨边界调用、SIMD
+- 多线程需 COOP/COEP；Component Model 是下一代互操作方向
 - Rust + wasm-pack 是近年主流工具链
 
 ## 延伸阅读
