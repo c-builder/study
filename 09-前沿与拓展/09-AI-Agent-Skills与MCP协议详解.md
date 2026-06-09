@@ -2,7 +2,8 @@
 
 ## 学习目标
 
-- 厘清 **Skills / MCP / Tool Calling** 三者的定位与选型
+- 厘清 **Skills / Rules / MCP / Tool Calling** 的定位与选型
+- 区分 **Skills（流程方法）** 与 **Rules（常驻约束）** 的加载机制与适用场景
 - 掌握 MCP 协议架构（Host/Client/Server）、三大原语与传输层
 - 理解 **MCP Apps** 扩展对前端架构师的意义（沙箱 UI、postMessage 通信）
 - 能设计 Agent 产品的 Tool 进度 UI、确认门、安全边界
@@ -11,7 +12,7 @@
 
 2026 年大厂（阿里通义、字节豆包/Coze、腾讯混元）AI 应用岗 increasingly 追问：
 
-- **Skills 和 MCP 有什么区别？能不能互相替代？**
+- **Skills 和 MCP 有什么区别？Skills 和 Rules 又有什么区别？**
 - **MCP 的 Host/Client/Server 各自干什么？前端在哪一层？**
 - **MCP Apps 的沙箱 iframe 怎么设计？安全怎么保证？**
 
@@ -137,7 +138,72 @@ sequenceDiagram
 
 **前端架构师关注点**：Skills 管理 UI（创建/编辑/版本/权限）、Skills 市场/目录浏览、与 IDE/Chat 产品的集成入口。
 
-### 2.4 Skills 在前端产品中的落地
+### 2.4 Skills vs Rules 辨析
+
+Skills 和 Rules **同属知识层**（都不执行动作、都教 Agent），但定位、加载机制、结构完全不同。大厂常追问：「都教 AI，那 Rules 和 Skills 区别在哪？」
+
+> **Rules 是「无论做什么都要遵守的约束」，Skills 是「做某类任务时才调用的方法包」。**
+
+| 维度 | **Rules（规则）** | **Skills（技能）** |
+|------|------------------|-------------------|
+| 定位 | **约束/不变量**：始终要遵守的规范 | **流程/方法**：完成某类任务的步骤与专长 |
+| 加载机制 | 常驻或按文件 glob 触发，**前置注入** context | **渐进式披露**：启动只读 description，任务匹配才加载全文 |
+| 结构 | 单个 `.md` / `.mdc` 文件，纯文本指令 | **目录包**：`SKILL.md` + `scripts/` + `references/` |
+| 能否带脚本/资源 | 否 | 可以 |
+| 触发方式 | 自动（always / 匹配 `**/*.tsx` 等路径） | Agent 判断「任务与 description 相关」才启用 |
+| 可移植性 | 偏绑定具体 Host（如 Cursor Rules） | **开放标准**，跨 runtime 可移植 |
+| Token 成本 | 少而短，常驻可接受 | 多而长，必须按需加载 |
+| 类比 | 公司规章制度（永远生效） | 操作手册 / SOP（做某事时才翻开） |
+
+```mermaid
+flowchart TB
+    subgraph always [常驻层 - Rules]
+        R1[用 pnpm 不用 npm]
+        R2[回复用中文]
+        R3[组件放 src/components]
+    end
+    subgraph ondemand [按需层 - Skills]
+        S1[code-review 评审流程]
+        S2[deploy-checklist 发布清单]
+        S3[security-audit 安全审计]
+    end
+    LLM[LLM / Agent]
+    always -->|始终注入| LLM
+    ondemand -->|任务匹配才加载| LLM
+```
+
+**日常开发对照（以 Cursor 为例）**：
+
+| | 文件位置 | 示例 |
+|---|---------|------|
+| **Rules** | `.cursor/rules/*.mdc` | 「本项目用 pnpm」「所有回复用中文」「不要主动 commit」 |
+| **Skills** | `.cursor/skills-*/**/SKILL.md` | `create-rule`（教如何写 rule）、`babysit`（修 CI 流程）、`canvas`（做可视化产物） |
+
+**选型决策**：
+
+| 写什么 | 用 Rules 还是 Skills |
+|--------|---------------------|
+| 项目技术栈约定、命名规范、语言偏好 | **Rules** |
+| 代码评审完整流程 + 清单 + 脚本 | **Skills** |
+| 「永远不要 force push」 | **Rules** |
+| 「如何排查内存泄漏」分步 SOP | **Skills** |
+| 只有两三句话的短约束 | **Rules** |
+| 内容长、含模板/脚本、仅特定任务需要 | **Skills** |
+
+**为什么不能把一切都写成 Rules？** Context 窗口有限。几十条 Rules 常驻还能接受；若把「评审流程」「发布清单」「安全审计」等长 SOP 全写成 Rules，每次对话都注入，Token 瞬间耗尽、成本飙升、无关任务也被干扰。Skills 的渐进式披露正是为解决**规模化知识管理**而设计。
+
+**更完整的 Agent 抽象分层**（面试加分）：
+
+| 层 | 原语 | 作用 |
+|----|------|------|
+| 约束 | **Rules** | 不变量，始终生效 |
+| 流程 | **Skills** | 工作流与领域专长，按需加载 |
+| 连接 | **MCP** | 标准化接入外部系统 |
+| 动作 | **Tools** | 具体可调用函数 |
+| 数据 | **MCP Resources** | 只读上下文注入 |
+| 并行 | **Subagents** | 隔离 context 的并行子任务 |
+
+### 2.5 Skills 在前端产品中的落地
 
 | 职责 | 实现 |
 |------|------|
@@ -469,7 +535,8 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 
 ## 运用：项目落地 Checklist
 
-- [ ] 厘清 Skills（知识）/ MCP（连接）/ Tool（动作）分工，避免混用
+- [ ] 厘清 Rules（常驻约束）/ Skills（按需流程）/ MCP（连接）/ Tool（动作）分工
+- [ ] 短约束写 Rules，长 SOP/含脚本写 Skills，避免把所有 SOP 常驻注入
 - [ ] Skills 用渐进式披露，启动只加载 frontmatter
 - [ ] MCP Client 在 BFF/Host，前端不直连 Server
 - [ ] Tool 步骤 UI：pending → running → done/error，支持折叠结果
@@ -505,6 +572,14 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 4. ⭐ **原理（触底）**：MCP Apps 和自研 Tool 结果卡片有什么区别？→ 自研卡片 Host 完全控制渲染；MCP Apps 由 Server 提供 UI 模板，适合工具方自定义交互（地图、图表、表单），但 Host 必须用沙箱+确认门兜底安全。
 5. **实战（落地）**：MCP App 白屏你怎么排查？→ 场景：接第三方 MCP 地图 Server，Tool 触发后 iframe 空白；步骤：DevTools 查 iframe src/`ui://` 资源是否 404 → 查 sandbox 是否缺 `allow-scripts` → 查 postMessage origin → 补 `ui/initialize` 握手；验证：地图可交互、点击走确认门后才调 tools/call；结果：第三方 MCP 富 UI 安全接入，无 XSS 风险。
 
+### 链四：Skills vs Rules
+
+1. **概念**：Skills 和 Rules 区别？→ Rules 是常驻约束（永远遵守）；Skills 是按需加载的任务方法包（做某事时才启用）。
+2. **机制**：为什么 Skills 用渐进式披露、Rules 不用？→ Rules 少而短、需始终生效；Skills 可能几十上百个且很长，全量注入会撑爆 Context。
+3. **边界**：代码规范写 Rules 还是 Skills？→ 两三句短约束写 Rules；含完整流程/清单/脚本的写 Skills。
+4. ⭐ **原理（触底）**：为什么不能把所有 SOP 都写成 Rules？→ Context 经济学：常驻 Token 有上限，无关 SOP 注入会挤占有效 context、抬高成本、干扰无关任务；Skills 用 frontmatter 元数据做路由，只在匹配时加载正文。
+5. **实战（落地）**：团队 AI 助手怎么划分 Rules 和 Skills？→ 场景：内部 Coding Agent 需统一规范 + 多种专项流程；步骤：Rules 放「pnpm/中文回复/禁止 force push」等 5-8 条短约束常驻；Skills 拆 `code-review`、`deploy-checklist`、`incident-response` 等目录包按需加载；验证：普通对话 Token 开销稳定，触发评审时才加载评审 Skill；结果：成本可控、专项任务质量不降。
+
 ## 常见误区
 
 | 误区 | 正确理解 |
@@ -515,11 +590,15 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 | "Skills 会执行代码" | Skills 本身是 Markdown 指令，执行靠 Agent 读完后调 Tool/MCP |
 | "MCP Apps 可以访问 Host DOM" | 必须沙箱隔离，只通过 postMessage JSON-RPC |
 | "所有 Tool 都要 MCP" | 简单内置 Tool 直接 Function Calling 即可，不必上 MCP |
+| "Skills 就是 Rules" | Rules 常驻短约束；Skills 按需加载长流程，结构是目录包 |
+| "规范都写进 Rules 最省事" | 长 SOP 常驻会撑爆 Context，应拆成 Skills |
+| "Rules 和 Skills 能互相替代" | 同属知识层但加载机制不同，应组合使用 |
 
 ## 小结
 
 - **Tool / MCP / Skills** 三层抽象：动作 / 连接 / 知识，大厂面试必考选型
-- **Skills**：SKILL.md + 渐进式披露，教 Agent「怎么做」
+- **Rules vs Skills**：Rules 常驻约束，Skills 按需流程；同属知识层，加载机制不同
+- **Skills**：SKILL.md 目录包 + 渐进式披露，教 Agent「怎么做」
 - **MCP**：Host/Client/Server + JSON-RPC + Tools/Resources/Prompts，提供「能执行」
 - **MCP Apps**：2026 前端重点，`ui://` 沙箱 UI + postMessage，安全靠 sandbox + 确认门
 - **前端职责**：Tool 步骤 UI、敏感确认门、MCP Apps Host 桥接，执行在 BFF
