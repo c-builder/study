@@ -2,257 +2,122 @@
 
 ## 学习目标
 
-- 理解 Webpack 的核心概念：entry、output、loader、plugin
-- 掌握 Webpack 打包流程与 Tapable 插件机制
-- 理解 Vite 的开发时 ESM 与生产 Rollup 构建
-- 了解常见构建优化策略
+- 读懂构建流程，能用 bundle 分析器定位体积问题
+- 能在 Vite/Webpack 项目中落地代码分割、缓存、提速
+- 能排查 HMR 失效、构建慢、Tree Shaking 无效
 
 ## 为什么需要
 
-浏览器不能直接运行 JSX、TS、SCSS，模块需打包合并。构建工具负责：
+「首屏 JS 2MB」「改一行全量编译 3 分钟」——架构师必须能读构建产物并优化。
 
-- 转译、打包、代码分割
-- 开发热更新（HMR）
-- 生产优化（压缩、Tree Shaking）
+> 核心心法：**构建 = 依赖图 + 转换 + 分包 + 输出。** 优化就是减图、减转换、减输出。
 
-架构师需选型 Webpack vs Vite，配置优化，必要时编写 plugin/loader。
+---
 
-## 核心原理
+## 一、心智模型
 
-### 1. Webpack 打包流程
-
-```mermaid
-flowchart TD
-    Entry[Entry 入口] --> Resolve[Resolve 解析依赖]
-    Resolve --> Load[Load 加载模块]
-    Load --> Transform[Transform Loader 转换]
-    Transform --> Parse[Parse 解析 AST]
-    Parse --> Graph[构建依赖图 Module Graph]
-    Graph --> Seal[Seal 优化 Chunk]
-    Seal --> Emit[Emit 输出文件]
-```
-
-**核心概念：**
-
-| 概念 | 说明 |
+| 现象 | 先查 |
 |------|------|
-| Entry | 打包入口 |
-| Output | 输出配置 |
-| Loader | 转换非 JS 模块（css、ts、图片） |
-| Plugin | 扩展构建生命周期 |
-| Chunk | 代码块，可 split |
-| Module | 单个文件模块 |
+| 包太大 | analyzer 看谁占体积 |
+| 构建慢 | 缓存、thread、减少 loader |
+| HMR 全刷新 | 边界模块、循环依赖 |
+| 摇树无效 | sideEffects、CJS 依赖 |
 
-```javascript
-// webpack.config.js 简化
-module.exports = {
-  entry: './src/index.js',
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: '[name].[contenthash].js'
-  },
-  module: {
-    rules: [
-      { test: /\.tsx?$/, use: 'ts-loader' },
-      { test: /\.css$/, use: ['style-loader', 'css-loader'] }
-    ]
-  },
-  plugins: [
-    new HtmlWebpackPlugin({ template: './index.html' })
-  ],
-  optimization: {
-    splitChunks: { chunks: 'all' }
-  }
-};
+---
+
+## 二、体积分析（第一步必做）
+
+```bash
+# Vite
+npx vite-bundle-visualizer
+
+# Webpack
+npx webpack-bundle-analyzer dist/stats.json
 ```
 
-### 2. Loader 与 Plugin
+**常见发现：** 整包 lodash、moment locale、重复 react、未 lazy 的路由。
 
-**Loader：** 文件级转换，链式执行
+---
 
-```javascript
-// 自定义 loader 示例
-module.exports = function(source) {
-  return source.replace(/console\.log\([^)]*\)/g, '');
-};
-```
+## 三、优化落地清单
 
-**Plugin：** 基于 Tapable 事件，介入构建生命周期
+### 代码分割
 
 ```javascript
-class MyPlugin {
-  apply(compiler) {
-    compiler.hooks.emit.tapAsync('MyPlugin', (compilation, callback) => {
-      // 在 emit 前修改 assets
-      callback();
-    });
-  }
-}
-```
+// 路由 lazy
+const Admin = lazy(() => import('./pages/Admin'));
 
-### 3. Vite 原理
-
-```mermaid
-flowchart LR
-    subgraph dev [开发模式]
-        Browser[浏览器] -->|请求 /src/main.ts| Vite[Vite Dev Server]
-        Vite -->|ESM 直接返回| Browser
-        Vite -->|预构建 deps| Esbuild[esbuild]
-    end
-    
-    subgraph prod [生产模式]
-        Source[源码] --> Rollup[Rollup 打包]
-        Rollup --> Dist[dist]
-    end
-```
-
-**开发时快的原因：**
-
-1. **原生 ESM**：不打包，按需编译单个文件
-2. **esbuild 预构建**：node_modules 用 esbuild 转成 ESM，秒级
-3. **HMR**：模块级热更新，保留状态
-
-**生产构建：** 使用 Rollup，Tree Shaking 更成熟
-
-```javascript
-// vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom']
-        }
-      }
-    }
-  }
-});
-```
-
-### 4. Webpack vs Vite
-
-| 维度 | Webpack | Vite |
-|------|---------|------|
-| 开发启动 | 全量打包，慢 | 按需 ESM，快 |
-| 热更新 | 模块替换 | 更快，ESM 原生 |
-| 生产 | Webpack | Rollup |
-| 生态 | 最丰富 | 快速增长 |
-| 配置 | 灵活复杂 | 约定优于配置 |
-| 适用 | 复杂定制、老项目 | 新项目、Vue/React |
-
-### 5. 构建优化
-
-```javascript
-// 1. 代码分割
-optimization: {
-  splitChunks: {
-    chunks: 'all',
-    cacheGroups: {
-      vendor: { test: /node_modules/, name: 'vendor' }
+// Vite manualChunks
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: { vendor: ['react', 'react-dom'] }
     }
   }
 }
+```
 
-// 2. Tree Shaking — ESM + sideEffects: false
-// package.json
+### Tree Shaking
+
+```json
+// package.json 库作者
 { "sideEffects": false }
-
-// 3. 持久化缓存
-optimization: {
-  moduleIds: 'deterministic',
-  runtimeChunk: 'single'
-}
-
-// 4. 分析包体积
-// webpack-bundle-analyzer
 ```
-
-### 6. AST 与编译器
-
-```mermaid
-flowchart LR
-    Source[源码] --> Parse[Parse 解析 AST]
-    Parse --> Transform[Transform 转换]
-    Transform --> Generate[Generate 生成代码]
-```
-
-| 工具 | 特点 |
-|------|------|
-| Babel | 插件生态最全，JS 转换标准 |
-| SWC | Rust，极快 |
-| esbuild | Go，开发预构建 |
-
-### 7. Source Map 原理
-
-生成 `.map` 文件，映射压缩后行列到源码行列。生产环境上传至 Sentry，**不**公开给浏览器（避免源码泄露）。
 
 ```javascript
-// webpack
-devtool: 'source-map'        // 完整 map
-devtool: 'hidden-source-map' // 无 //# sourceMappingURL
+// 应用侧
+import debounce from 'lodash-es/debounce'; // 不要 import _ from 'lodash'
 ```
 
-### 8. HMR 原理
-
-```mermaid
-sequenceDiagram
-    DevServer->>Browser: WebSocket 推送 hash 变更
-    Browser->>DevServer: 请求更新 chunk
-    DevServer-->>Browser: 新模块 + hotAccept 回调
-    Browser->>Browser: 替换模块，保留状态
-```
-
-Webpack HMR API：`module.hot.accept('./module', callback)`。Vite 基于 ESM，精确到单文件替换。
-
-### 9. Tree Shaking 原理
-
-1. ESM 静态 `import/export` 分析依赖图
-2. 标记使用的 export（usedExports）
-3. Dead Code Elimination 删除未引用代码
-4. `sideEffects: false` 允许更激进删除
+### 构建提速
 
 ```javascript
-// utils.js
-export function used() {}
-export function unused() {} // 若 sideEffects: false 且未 import，会被删除
+// Webpack 5
+cache: { type: 'filesystem' }
+
+// Vite 已 esbuild 预构建；大型项目 tuning optimizeDeps.include
 ```
 
-### 10. Rspack / Turbopack 与构建提速
+---
 
-- **Rspack：** Rust 实现 Webpack 兼容 API，更快
-- **Turbopack：** Vercel，Rust，Next.js 开发模式
-- **持久缓存：** Webpack 5 `cache: { type: 'filesystem' }`
-- **并行：** thread-loader、esbuild minify
+## 四、HMR 排查
 
-## 常见误区与最佳实践
+1. 改组件是否整页刷新？→ 看控制台 HMR 日志
+2. 是否改到 entry 边界外不可 HMR 模块？
+3. 是否 `accept` 链断裂（Webpack）
 
-| 误区 | 正确理解 |
-|------|---------|
-| "Vite 不用 Webpack 所以不打包" | 生产仍打包，用 Rollup |
-| "Loader 和 Plugin 随便用" | Loader 转文件，Plugin 介入生命周期 |
-| "开发快 = 生产快" | 生产需单独优化 |
-| "所有依赖都打包进 bundle" | externals 可排除 CDN 加载的库 |
+---
 
-**最佳实践：**
+## 排查实战
 
-- 新项目优先 Vite
-- 生产 filename 带 contenthash，配合 CDN 长缓存
-- 定期 bundle analyze，清理无用依赖
-- 大型项目考虑 Module Federation 微前端
+### 案例 A：主包 1.8MB
+
+- **analyzer：** echarts 全量 + moment
+- **修复：** echarts 按需 `echarts/core`；dayjs 替 moment
+- **验证：** 主包 420KB，Lighthouse TBT 降 40%
+
+### 案例 B：CI 构建 8 分钟
+
+- **原因：** 无 persistent cache，每次全量
+- **修复：** Webpack filesystem cache + Turborepo 远程 cache
+- **验证：** 二次构建 <2 分钟
+
+---
+
+## 项目落地步骤
+
+1. 接入 bundle analyzer，设预算（script <300KB gzip）
+2. 路由全 lazy + vendor split
+3. CI 跑 `pnpm build` + Lighthouse CI
+4. PR 模板要求附 analyzer 截图（体积变更时）
 
 ## 小结
 
-- Webpack：entry → 依赖图 → loader 转换 → plugin 扩展 → 输出
-- Vite：开发 ESM + esbuild 预构建，生产 Rollup
-- Loader 转文件，Plugin 扩展构建
-- 优化：代码分割、Tree Shaking、缓存
+- analyzer 找大头；lazy + manualChunks 拆包
+- sideEffects + ESM 依赖才能摇树
+- cache 提速；HMR 看边界与日志
 
 ## 延伸阅读
 
-- [Webpack 概念](https://webpack.js.org/concepts/)
-- [Vite 原理](https://vitejs.dev/guide/why.html)
-- [Rollup 文档](https://rollupjs.org/)
+- [Vite Build](https://vitejs.dev/guide/build.html)
+- [Webpack Code Splitting](https://webpack.js.org/guides/code-splitting/)

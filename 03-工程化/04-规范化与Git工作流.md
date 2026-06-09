@@ -214,6 +214,19 @@ end_of_line = lf
 pnpm turbo run lint --filter=...[origin/main]
 ```
 
+---
+
+## 实战：规范工具链一次配齐
+
+```bash
+pnpm add -D eslint prettier husky lint-staged @commitlint/cli @commitlint/config-conventional
+npx husky init
+echo "pnpm exec lint-staged" > .husky/pre-commit
+echo "pnpm exec commitlint --edit \$1" > .husky/commit-msg
+```
+
+**验证：** 故意提交 `console.log` 未修复 → pre-commit 拦截；commit message `fix bug` → commitlint 拒绝。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

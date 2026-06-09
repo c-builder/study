@@ -198,6 +198,22 @@ npm/yarn 扁平化 `node_modules` 时，A 的依赖可能被提升到顶层，B 
 
 Verdaccio、云厂商私有 npm，配合 `.npmrc`：`@myorg:registry=https://npm.example.com/`
 
+---
+
+## 实战：从 0 搭 Monorepo（半天）
+
+```bash
+mkdir my-monorepo && cd my-monorepo
+pnpm init
+echo "packages:\n  - 'packages/*'" > pnpm-workspace.yaml
+mkdir -p packages/ui packages/app
+pnpm add -D turbo typescript -w
+```
+
+**验证：** `pnpm --filter app dev` 能引用 `@repo/ui`；改 ui 后 app HMR 生效。
+
+**踩坑：** 子包未声明依赖却 import → pnpm 报错；正确在 app/package.json 加 `"@repo/ui": "workspace:*"`。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

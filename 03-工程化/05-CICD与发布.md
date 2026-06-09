@@ -199,6 +199,29 @@ curl -f https://prod.example.com/health || exit 1
 
 **GitOps：** 以 Git 为单一事实来源，Argo CD / Flux 监听 repo 变更自动同步集群状态。
 
+---
+
+## 实战：GitHub Actions 最小 CI（30 分钟）
+
+```yaml
+# .github/workflows/ci.yml
+on: [push, pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint && pnpm test && pnpm build
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist }
+```
+
+**灰度验证：** 发布后用 `curl -f https://prod/health` 冒烟；监控错误率 10 分钟无 spike 再全量。
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

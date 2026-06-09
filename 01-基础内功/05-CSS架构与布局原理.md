@@ -333,6 +333,39 @@ html { font-size: 16px; }
 
 现代项目常直接用 CSS Variables + 原生嵌套，PostCSS 仅做 autoprefixer 和压缩。
 
+---
+
+## 实战落地：布局 bug 排查三步法
+
+### 步骤 1：DevTools 看盒模型
+
+Elements → Computed → 展开 box model，看 margin 折叠、padding 是否预期。
+
+### 步骤 2：z-index 不生效
+
+99% 是**层叠上下文**问题：父元素 `opacity<1` / `transform` 创建新上下文。在 Elements 勾选 **Show stacking context**（Experiments）或逐层查父级。
+
+### 步骤 3：Flex 子项被挤压
+
+```css
+.flex-child { flex-shrink: 0; min-width: 0; } /* 文字溢出常用 min-width:0 */
+```
+
+### 案例：Modal 被挡在下面
+
+- **现象：** Modal z-index:9999 仍被 header 盖住
+- **定位：** header 有 `transform`，自成上下文
+- **修复：** Modal portal 到 `document.body` 或去掉 header transform
+- **验证：** 任意页面 Modal 最顶层
+
+### 架构选型落地（团队决策表）
+
+| 团队规模 | 推荐 | 第一步 |
+|---------|------|--------|
+| 小 | Tailwind + token | 配 `@tailwindcss` + CSS 变量主题 |
+| 中 | CSS Modules | 组件 `.module.css` + Stylelint |
+| 大 | Token + 组件库 | Style Dictionary 出 CSS/JS |
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |

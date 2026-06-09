@@ -87,6 +87,7 @@ flowchart TD
 | [03-React-Fiber架构](./02-框架与底层原理/03-React-Fiber架构.md) | Fiber 架构、调度机制 |
 | [04-状态管理设计](./02-框架与底层原理/04-状态管理设计.md) | Redux/Zustand/Pinia 设计取舍 |
 | [05-跨端方案选型](./02-框架与底层原理/05-跨端方案选型.md) | 小程序/RN/Electron 选型 |
+| [06-React19新特性](./02-框架与底层原理/06-React19新特性.md) | use/Actions/RSC/Compiler |
 
 ### [03-工程化](./03-工程化/00-本章导读.md)
 

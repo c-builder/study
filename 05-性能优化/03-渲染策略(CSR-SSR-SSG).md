@@ -2,215 +2,129 @@
 
 ## 学习目标
 
-- 理解 CSR、SSR、SSG、ISR 的原理与差异
-- 掌握各策略的适用场景与权衡
-- 了解 Next.js、Nuxt 等框架的渲染模式
-- 能为项目选择合适的渲染策略
+- 能为每个页面选对 CSR/SSR/SSG/ISR
+- 能在 Next.js 中落地并验证 SEO、TTFB、Hydration
+- 能排查 Hydration mismatch、SEO 不收录
 
 ## 为什么需要
 
-不同页面对 SEO、首屏、交互的需求不同：
+「全站 SSR」和「全站 CSR」都是错的——**按页面特征选型**才是架构师工作。
 
-- 营销页：SEO 重要 → SSR/SSG
-- 后台 Dashboard：SEO 无关 → CSR
-- 新闻/电商详情：内容更新 → ISR
+> 核心心法：**需要 SEO/首屏？考虑 SSR/SSG。纯后台？CSR。** 混合架构是常态。
 
-架构师需在**体验、成本、复杂度**间权衡。
+---
 
-## 核心原理
-
-### 1. 四种策略对比
-
-```mermaid
-flowchart TB
-    subgraph csr [CSR 客户端渲染]
-        C1[浏览器请求 HTML 壳]
-        C2[下载 JS]
-        C3[JS 请求数据并渲染]
-    end
-    
-    subgraph ssr [SSR 服务端渲染]
-        S1[服务器执行组件]
-        S2[返回完整 HTML]
-        S3[客户端 Hydration]
-    end
-    
-    subgraph ssg [SSG 静态生成]
-        G1[构建时生成 HTML]
-        G2[CDN 直接返回]
-    end
-```
-
-| 策略 | 渲染时机 | 首屏 | SEO | 服务器负载 |
-|------|---------|------|-----|-----------|
-| **CSR** | 浏览器 | 慢 | 差 | 低 |
-| **SSR** | 每次请求 | 快 | 好 | 高 |
-| **SSG** | 构建时 | 最快 | 好 | 极低 |
-| **ISR** | 构建 + 按需更新 | 快 | 好 | 中 |
-
-### 2. CSR（Client-Side Rendering）
-
-```html
-<!-- 初始 HTML 几乎为空 -->
-<div id="root"></div>
-<script src="app.js"></script>
-```
-
-```javascript
-// app.js 挂载 React
-createRoot(document.getElementById('root')).render(<App />);
-// App 内 fetch 数据再渲染
-```
-
-**优点：** 简单、交互好、服务器压力小  
-**缺点：** 首屏白屏、SEO 差、弱网体验差
-
-### 3. SSR（Server-Side Rendering）
-
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant Server
-    participant API
-
-    Browser->>Server: GET /page
-    Server->>API: fetch data
-    API-->>Server: data
-    Server->>Server: renderToString
-    Server-->>Browser: HTML + data
-    Browser->>Browser: Hydration 绑定事件
-```
-
-```jsx
-// Next.js App Router
-async function Page() {
-  const data = await fetch('https://api.example.com/data');
-  const json = await data.json();
-  return <div>{json.title}</div>;
-}
-// 服务端执行，返回 HTML
-```
-
-**Hydration：** 客户端 JS 加载后，将事件绑定到已有 DOM，使静态 HTML "可交互"
-
-**优点：** 首屏快、SEO 好  
-**缺点：** 服务器成本、TTFB 受数据请求影响、Hydration 成本
-
-### 4. SSG（Static Site Generation）
-
-```javascript
-// Next.js getStaticProps (Pages Router)
-export async function getStaticProps() {
-  const res = await fetch('https://api.example.com/posts');
-  const posts = await res.json();
-  return { props: { posts } };
-}
-
-// 构建时执行，生成静态 HTML
-```
-
-**适用：** 博客、文档、营销页、内容不频繁变化
-
-### 5. ISR（Incremental Static Regeneration）
-
-```javascript
-// Next.js
-export async function getStaticProps() {
-  const data = await fetchData();
-  return {
-    props: { data },
-    revalidate: 60 // 60 秒后 stale，下次请求后台重新生成
-  };
-}
-```
-
-- 静态 + 按需更新
-- 兼顾 SSG 性能和 SSR  freshness
-
-### 6. 选型决策
+## 一、页面选型决策树
 
 ```mermaid
 flowchart TD
-    Start[选择渲染策略] --> SEO{需要 SEO?}
+    Start[页面] --> SEO{需要 SEO?}
     SEO -->|否| CSR[CSR SPA]
-    SEO -->|是| Dynamic{内容频繁变化?}
-    Dynamic -->|否| SSG[SSG]
-    Dynamic -->|是| Realtime{实时性要求?}
-    Realtime -->|高| SSR[SSR]
-    Realtime -->|中| ISR[ISR]
+    SEO -->|是| Change{内容变化频率?}
+    Change -->|低| SSG[SSG]
+    Change -->|中| ISR[ISR]
+    Change -->|高/个性化| SSR[SSR]
 ```
 
-**混合策略（推荐）：**
+| 页面类型 | 推荐 | 理由 |
+|---------|------|------|
+| 营销首页 | SSG/ISR | 快+SEO |
+| 商品详情 | ISR/SSR | SEO+库存更新 |
+| 用户 Dashboard | CSR | 登录后，SEO 无关 |
+| 文档站 | SSG | 纯静态 |
 
-- 营销/文档：SSG
-- 商品详情：ISR 或 SSR
-- 用户 Dashboard：CSR（登录后，SEO 无关）
-- 首页：SSR 或 SSG
+---
 
-### 7. 流式 SSR（Streaming）
+## 二、Next.js App Router 落地
 
-```jsx
-// React 18 Suspense + Streaming
-<Suspense fallback={<Skeleton />}>
-  <SlowComponent />
-</Suspense>
-// 服务器先发送 Shell，SlowComponent 就绪后流式发送
+### SSG/ISR
+
+```tsx
+// app/blog/[slug]/page.tsx
+export async function generateStaticParams() {
+  return posts.map(p => ({ slug: p.slug }));
+}
+
+export default async function Page({ params }) {
+  const post = await getPost(params.slug); // 构建时/按需
+  return <Article post={post} />;
+}
+
+export const revalidate = 3600; // ISR 1h
 ```
 
-减少 TTFB，渐进式展示内容。
+### SSR（动态）
 
-### 7. Hydration 问题与新范式
-
-**Hydration mismatch：** 服务端 HTML 与客户端首次 render 不一致会导致报错或闪烁。
-
-| 方案 | 说明 |
-|------|------|
-| Partial Hydration | 仅交互组件 hydrate |
-| Islands（Astro） | 静态 HTML + 独立交互岛屿 |
-| Selective Hydration | 按优先级/可见性 hydrate |
-| Resumability（Qwik） | 序列化状态，无需 replay 事件 |
-
-### 8. RSC 与 Edge Rendering
-
-**React Server Components：** 默认服务端组件，零客户端 bundle；`'use client'` 标记客户端组件。
-
-**Edge：** 在 CDN 边缘节点执行 SSR，降低 TTFB（Vercel Edge、Cloudflare Workers）。
-
-### 9. SSR 缓存与 SEO
-
-```javascript
-// CDN 缓存 SSR 页面 — Cache-Control + surrogate-key
-res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+```tsx
+export const dynamic = 'force-dynamic';
+export default async function Page() {
+  const data = await fetch('https://api...', { cache: 'no-store' });
+  return <div>{data.title}</div>;
+}
 ```
 
-**SEO：** `<title>`、`<meta description>`、Open Graph、JSON-LD 结构化数据、sitemap.xml、robots.txt。
+### CSR 岛屿
 
-## 常见误区与最佳实践
+```tsx
+'use client';
+export function InteractiveChart() { /* 仅客户端 */ }
+```
 
-| 误区 | 正确理解 |
-|------|---------|
-| "SSR 一定比 CSR 快" | 数据慢时 TTFB 高，需 Streaming |
-| "全站 SSR" | 按页面选型，后台可 CSR |
-| "SSG 不能动态" | ISR、客户端 fetch 可补充 |
-| "Hydration 无成本" | 大页面 Hydration 耗时，考虑 Partial Hydration |
+---
 
-**最佳实践：**
+## 三、Hydration 问题排查
 
-- 按路由选择策略，Next.js 支持 per-route
-- 静态资源仍 CDN + 长缓存
-- 监控 TTFB、LCP，SSR 页面关注服务端性能
-- 敏感数据 SSR 时注意 XSS，做 escape
+**报错：** Text content does not match server-rendered HTML
+
+**常见原因：**
+
+- `Date.now()` / `Math.random()` 服务端客户端不一致
+- 浏览器扩展改 DOM
+- 错误嵌套 `<p><div></div></p>`
+
+**修复：** 仅客户端值放 `useEffect`；或 `suppressHydrationWarning`（慎用）
+
+**验证：** 生产 build `pnpm build && pnpm start`，Console 无 hydration error。
+
+---
+
+## 四、SEO 验证
+
+1. View Source 看是否有正文 HTML（非空 div#root）
+2. Google Rich Results Test
+3. `sitemap.xml` + `robots.txt` + meta/JSON-LD
+
+---
+
+## 排查实战
+
+### 案例 A：详情页 Google 不收录
+
+- **原因：** 纯 CSR，爬虫空 HTML
+- **修复：** 改 SSR/SSG，View Source 可见内容
+- **验证：** Search Console 抓取成功
+
+### 案例 B：TTFB 2s
+
+- **原因：** SSR 每次打慢 API
+- **修复：** ISR + CDN cache `s-maxage`
+- **验证：** TTFB <600ms
+
+---
+
+## 项目落地步骤
+
+1. 页面清单 + 选型表（上表）
+2. Next 路由划分 Server/Client Component
+3. 配 `revalidate` / `cache`
+4. CI 跑 build + hydration 冒烟
 
 ## 小结
 
-- CSR：简单，首屏和 SEO 弱
-- SSR：每次请求渲染，首屏和 SEO 好
-- SSG：构建时生成，性能最佳
-- ISR：静态 + 按需更新
-- 混合策略按页面需求选型
+- 混合架构：营销 SSG、详情 ISR、后台 CSR
+- Hydration 问题看 SSR/CSR 不一致
+- SEO 必须 View Source 有内容
 
 ## 延伸阅读
 
 - [Next.js Rendering](https://nextjs.org/docs/app/building-your-application/rendering)
-- [Nuxt Rendering Modes](https://nuxt.com/docs/guide/concepts/rendering)
-- [Patterns.dev - Rendering Patterns](https://www.patterns.dev/vanilla/rendering-patterns/)

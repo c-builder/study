@@ -354,6 +354,52 @@ type Status = 'pending' | 'success' | 'error';
 
 函数参数类型**逆变**（更宽），返回值**协变**（更窄）。`strictFunctionTypes` 下，`(x: Animal) => void` 不能赋给 `(x: Dog) => void`。理解此概念有助于读懂复杂泛型约束。
 
+---
+
+## 实战落地：从接口到组件的类型闭环
+
+### 步骤 1：定义 API 类型（Monorepo 共享包）
+
+```typescript
+// packages/types/src/user.ts
+export interface User {
+  id: string;
+  name: string;
+  role: 'admin' | 'user';
+}
+export interface ApiResponse<T> {
+  code: number;
+  data: T;
+  message: string;
+}
+```
+
+### 步骤 2：fetch 层泛型约束
+
+```typescript
+async function get<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  const json: ApiResponse<T> = await res.json();
+  if (json.code !== 0) throw new Error(json.message);
+  return json.data;
+}
+const user = await get<User>('/api/user/1'); // user 自动推断
+```
+
+### 步骤 3：运行时校验（TS 不能替代）
+
+```typescript
+import { z } from 'zod';
+const UserSchema = z.object({ id: z.string(), name: z.string(), role: z.enum(['admin', 'user']) });
+const user = UserSchema.parse(await res.json()); // 边界外数据必校验
+```
+
+### 案例：重构前后
+
+- **Before：** `any` 满天飞，改字段线上才报错
+- **After：** 共享 `@repo/types`，改接口编译期全项目报错
+- **验证：** `pnpm build` 0 error；IDE 跳转定义正常
+
 ## 常见误区与最佳实践
 
 | 误区 | 正确理解 |
