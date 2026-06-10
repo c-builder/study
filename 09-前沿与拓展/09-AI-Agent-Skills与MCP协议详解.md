@@ -2,6 +2,7 @@
 
 ## 学习目标
 
+- 理解 **AI Agent 的定义**与 Agent Loop（感知-决策-行动循环）
 - 厘清 **Skills / Rules / MCP / Tool Calling** 的定位与选型
 - 区分 **Skills（流程方法）** 与 **Rules（常驻约束）** 的加载机制与适用场景
 - 掌握 MCP 协议架构（Host/Client/Server）、三大原语与传输层
@@ -18,7 +19,80 @@
 
 只会调 API 的候选人答不出这些。本篇是 [01-AI大模型前端应用](./01-AI大模型前端应用.md) 的**Agent 能力层深化**，理论前置见 [08-大模型发展史与底层原理](./08-大模型发展史与底层原理.md)。
 
-## 一、三种抽象：Tool / MCP / Skills
+## 一、什么是 AI Agent
+
+一句话：**AI Agent（智能体）= 大模型（会思考）+ 工具（能行动）+ 循环（自主决策直到完成任务）**。
+
+普通 LLM 只会「你问我答」——给文字回文字。Agent 能**自主拆解任务、调用工具、根据结果决定下一步**，像能干活的「数字员工」，而非一个聊天框。
+
+### Chatbot vs Agent
+
+| 维度 | 普通 LLM / Chatbot | AI Agent |
+|------|------|------|
+| 能力 | 只输出文本 | 调用工具改变外部世界（查库、发邮件、改代码） |
+| 决策 | 一问一答，无规划 | 自主拆解目标、规划步骤 |
+| 执行 | 单轮 | **多轮循环**，按上一步结果决定下一步 |
+| 记忆 | 仅当前上下文 | 可带短期/长期记忆 |
+| 例子 | ChatGPT 纯聊天 | Cursor 改完整功能、Coze 工作流机器人 |
+
+### Agent Loop（核心：感知-决策-行动循环）
+
+Agent 区别于普通 LLM 的本质，是这个反复迭代的循环（业界称 **ReAct 模式**：Reasoning + Acting）：
+
+```mermaid
+flowchart LR
+    G[目标] --> P[规划/思考<br/>下一步做什么]
+    P --> A[行动<br/>调用工具]
+    A --> O[观察<br/>拿到工具结果]
+    O --> D{任务完成?}
+    D -->|否| P
+    D -->|是| End[输出最终结果]
+```
+
+例：让 Cursor「修复登录页报错」→ 思考(要看代码) → 行动(Read 文件) → 观察(发现 null 报错) → 再思考(加判空) → 行动(Edit) → 观察(跑测试) → 判断(通过) → 结束。**思考→行动→观察反复迭代**正是 Agent 的灵魂。
+
+### Agent 的组成部件
+
+```mermaid
+flowchart TB
+    subgraph Agent
+        Brain[大模型 - 大脑<br/>推理与决策]
+        Plan[规划 - 拆解任务]
+        Memory[记忆 - 上下文/历史]
+        ToolUse[工具使用 - 行动能力]
+    end
+    Brain --> Plan
+    Brain --> Memory
+    Brain --> ToolUse
+    ToolUse --> Ext[外部世界<br/>API/数据库/文件]
+```
+
+| 部件 | 作用 | 对应概念 |
+|------|------|---------|
+| 大模型（大脑） | 理解、推理、决策 | 见 [08-大模型发展史与底层原理](./08-大模型发展史与底层原理.md) |
+| 规划（Planning） | 把大目标拆成步骤 | 推理模型 / 思维链 |
+| 工具（Tools） | 让它能真正行动 | **Tools / MCP**（下文） |
+| 方法（Skills） | 教它按规范做事 | **Skills**（下文） |
+| 记忆（Memory） | 记住上下文/历史 | Context 管理 |
+
+> 本篇后续的 **Tools / MCP / Skills / Rules** 都是为 Agent 服务的：Tools 让它行动、MCP 标准化接入外部能力、Skills 教它怎么做对、Rules 约束它始终遵守的规范。
+
+### 从单 Agent 到多 Agent
+
+- **单 Agent**：一个智能体完成任务（Cursor 改代码）
+- **多 Agent（Multi-Agent）**：多智能体分工协作（产品 Agent 写需求 → 开发 Agent 写代码 → 测试 Agent 验证），像虚拟团队
+- **Agentic Workflow**：把 Agent 编排成工作流（字节 Coze、Dify 等平台），可靠性是工程难点
+
+### 前端架构师视角
+
+| Agent 特性 | 前端职责 |
+|-----------|---------|
+| 思考→行动→观察循环 | Tool 调用步骤 UI 可视化（进度卡片） |
+| 调用敏感工具 | 用户确认门（发邮件/删文件先批准） |
+| 边想边输出 | SSE 流式展示思考与结果 |
+| 接外部能力 | 防 Prompt 注入、MCP Apps 沙箱隔离 |
+
+## 二、三种抽象：Tool / MCP / Skills
 
 大厂面试第一题往往是「三者区别」。记住一句话：
 
@@ -66,9 +140,9 @@ flowchart TB
 
 **经典面试答法**：「MCP 是 Agent 的手（能执行），Skills 是 Agent 的脑（知道怎么做）。菜谱（Skills）告诉你步骤，厨房设备（MCP）让你能真正操作。两者互补，不是竞争关系。」
 
-## 二、Agent Skills 详解
+## 三、Agent Skills 详解
 
-### 2.1 什么是 Skills
+### 3.1 什么是 Skills
 
 Anthropic 2025 年底推出的**开放标准**：用目录 + `SKILL.md` 文件，把领域工作流、决策逻辑、团队规范打包成 Agent 可读取的「技能包」。
 
@@ -81,7 +155,7 @@ my-skill/
     └── api-style.md
 ```
 
-### 2.2 SKILL.md 格式
+### 3.2 SKILL.md 格式
 
 ```markdown
 ---
@@ -107,7 +181,7 @@ description: 按团队规范做 PR 代码评审，检查安全、性能、可维
 - 安全问题必须标为 blocker
 ```
 
-### 2.3 渐进式披露（Progressive Disclosure）
+### 3.3 渐进式披露（Progressive Disclosure）
 
 Skills 的核心工程机制——**避免撑爆 Context 窗口**：
 
@@ -138,7 +212,7 @@ sequenceDiagram
 
 **前端架构师关注点**：Skills 管理 UI（创建/编辑/版本/权限）、Skills 市场/目录浏览、与 IDE/Chat 产品的集成入口。
 
-### 2.4 Skills vs Rules 辨析
+### 3.4 Skills vs Rules 辨析
 
 Skills 和 Rules **同属知识层**（都不执行动作、都教 Agent），但定位、加载机制、结构完全不同。大厂常追问：「都教 AI，那 Rules 和 Skills 区别在哪？」
 
@@ -203,7 +277,7 @@ flowchart TB
 | 数据 | **MCP Resources** | 只读上下文注入 |
 | 并行 | **Subagents** | 隔离 context 的并行子任务 |
 
-### 2.5 Skills 在前端产品中的落地
+### 3.5 Skills 在前端产品中的落地
 
 | 职责 | 实现 |
 |------|------|
@@ -212,9 +286,9 @@ flowchart TB
 | 运行时 | Agent Host 负责加载，前端只展示「当前启用的 Skills」 |
 | 与 MCP 协同 | 同一产品：Skills 页面配置工作流，MCP 页面配置外部连接 |
 
-## 三、MCP 协议详解
+## 四、MCP 协议详解
 
-### 3.1 架构：Host / Client / Server
+### 4.1 架构：Host / Client / Server
 
 ```mermaid
 flowchart LR
@@ -245,7 +319,7 @@ flowchart LR
 2. 通过 BFF/Host 代理调用 MCP
 3. （MCP Apps）渲染 Server 声明的沙箱 UI
 
-### 3.2 三大原语（Primitives）
+### 4.2 三大原语（Primitives）
 
 | 原语 | 方向 | 方法 | 用途 |
 |------|------|------|------|
@@ -268,7 +342,7 @@ flowchart LR
 }
 ```
 
-### 3.3 传输层
+### 4.3 传输层
 
 | 传输 | 场景 | 特点 |
 |------|------|------|
@@ -277,7 +351,7 @@ flowchart LR
 
 BFF 层通常用 HTTP 传输连接远程 MCP Server，前端通过自家 API 间接调用。
 
-### 3.4 会话生命周期
+### 4.4 会话生命周期
 
 ```mermaid
 sequenceDiagram
@@ -297,7 +371,7 @@ sequenceDiagram
     Client-->>Host: result → 展示 UI → 回传 LLM
 ```
 
-## 四、MCP Apps：前端架构师的高频考点
+## 五、MCP Apps：前端架构师的高频考点
 
 2026 年 MCP 最重要扩展——**MCP Apps**（SEP-1865）：Server 可声明交互式 UI，Host 在沙箱 iframe 中渲染。
 
@@ -367,7 +441,7 @@ function renderMcpApp(container: HTMLElement, uiResource: string, toolArgs: unkn
 
 **大厂考点**：你能说清楚 View 为什么是沙箱、为什么用 postMessage 而不是直接 DOM 操作、用户确认门放在哪一层（Host，不是 View）。
 
-## 五、Skills + MCP 组合架构
+## 六、Skills + MCP 组合架构
 
 ```mermaid
 flowchart TB
@@ -392,7 +466,7 @@ flowchart TB
 2. **MCP**：GitHub Server 拉 PR diff，内部 Lint Server 跑静态检查
 3. **前端**：展示评审进度（拉取 diff → 静态检查 → 生成意见），敏感操作（发评论）需确认
 
-## 六、前端 Tool 调用 UI 模式
+## 七、前端 Tool 调用 UI 模式
 
 ### 6.1 步骤进度组件
 
@@ -449,7 +523,7 @@ async function executeToolCall(toolCall: ToolCall, userId: string) {
 | Tool 白名单 | 按用户角色过滤可用 Tools |
 | Skills 注入 | 把匹配的 SKILL.md 注入 system prompt |
 
-## 七、安全与治理
+## 八、安全与治理
 
 | 风险 | 防护 |
 |------|------|
@@ -459,7 +533,7 @@ async function executeToolCall(toolCall: ToolCall, userId: string) {
 | 越权调用 | BFF 按用户角色过滤 tools/list |
 | 敏感数据泄露 | Resources 读权限分级，日志脱敏 |
 
-## 八、手写实现：最小 MCP Tool 进度解析
+## 九、手写实现：最小 MCP Tool 进度解析
 
 ```typescript
 // 解析 LLM 流式响应中的 tool_calls
@@ -504,7 +578,7 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 }
 ```
 
-## 九、排查实战
+## 十、排查实战
 
 ### 案例 A：Tool 调用后 UI 无反馈
 
@@ -548,7 +622,15 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 
 > 大厂对一个考点通常追问到能力边界：**概念 → 机制 → 边界 → ⭐ 原理（触底）→ 实战（落地）**。实战层是区分「背过」和「做过」的关键。
 
-### 链一：Skills vs MCP vs Tool
+### 链一：AI Agent 本质
+
+1. **概念**：什么是 AI Agent？→ 大模型 + 工具 + 自主循环，能拆解任务、调用工具、按结果决定下一步。
+2. **机制**：Agent 和普通 LLM 区别？→ LLM 一问一答只输出文本；Agent 多轮循环、能调工具改变外部世界。
+3. **边界**：Agent 一定可靠吗？→ 否，多步任务误差累积、可能死循环或调错工具，需步数上限/确认门/可观测兜底。
+4. ⭐ **原理（触底）**：Agent Loop 怎么运转？→ ReAct 模式：思考(规划下一步)→行动(调工具)→观察(拿结果)→判断是否完成，未完成则回到思考，反复迭代直到达成目标。
+5. **实战（落地）**：你怎么把 Agent 循环可视化并保证安全？→ 场景：内部 Coding Agent 自主改代码；步骤：前端把每轮 think/act/observe 渲染成步骤卡片、敏感操作（删文件/发布）插确认门、设最大步数防死循环、全程审计；验证：模拟错误工具调用能被拦截、超步数自动停；结果：用户看得见 Agent 在做什么、可随时干预，线上无失控操作。
+
+### 链二：Skills vs MCP vs Tool
 
 1. **概念**：三者区别？→ Tool 单次函数调用；MCP 连外部系统的标准协议；Skills 教 Agent 工作流/规范的文件包。
 2. **机制**：Skills 怎么避免撑爆 Context？→ 渐进式披露：启动只加载 name/description，任务匹配才读 SKILL.md 全文。
@@ -556,7 +638,7 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 4. ⭐ **原理（触底）**：为什么说是「MCP 是手，Skills 是脑」？→ MCP 提供可执行的外部能力（查库、调 API），Skills 提供程序性知识（怎么做、什么顺序、什么约束），LLM 本身只有通用知识，二者补齐「能做」和「做对」。
 5. **实战（落地）**：企业 Agent 平台你怎么设计 Skills + MCP？→ 场景：内部 AI 助手需接 GitHub + 按团队规范评审；步骤：写 `code-review` Skill 定义清单、接 GitHub MCP Server 拉 diff、BFF 编排 Skills 注入 + MCP 调用、前端步骤 UI + 发评论确认门；验证：评审输出格式稳定、未授权用户调不了 create_comment；结果：评审效率提升，输出符合团队规范。
 
-### 链二：MCP 协议与架构
+### 链三：MCP 协议与架构
 
 1. **概念**：MCP 解决什么？→ 把「AI 接外部工具」从各家自定义格式统一到 JSON-RPC 标准，像 USB-C 一样即插即用。
 2. **机制**：Host/Client/Server 分工？→ Host 管 UI 和协调；Client 一对一连 Server；Server 暴露 Tools/Resources/Prompts。
@@ -564,7 +646,7 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 4. ⭐ **原理（触底）**：stdio 和 Streamable HTTP 传输怎么选？→ 本地 IDE 插件用 stdio（子进程）；远程/多客户端用 Streamable HTTP（POST+SSE）；BFF 代理远程 Server 时前端只调自家 API，不碰 MCP 传输细节。
 5. **实战（落地）**：多个 MCP Server 怎么接入产品？→ 场景：Chat 产品需 GitHub + 内部 DB + 搜索；步骤：BFF 维护 MCP Client 连接池、按用户 OAuth 注入鉴权、tools/list 按角色过滤、前端统一 ToolProgress 组件展示步骤；验证：三 Server 并行调用不串会话、权限隔离；结果：新增 Server 只需 BFF 注册，前端组件零改动。
 
-### 链三：MCP Apps 与前端安全
+### 链四：MCP Apps 与前端安全
 
 1. **概念**：MCP Apps 是什么？→ MCP 扩展，Server 声明 `ui://` 交互 UI，Host 沙箱 iframe 渲染，View 通过 postMessage 与 Host 通信用 JSON-RPC。
 2. **机制**：为什么用 iframe sandbox？→ 隔离第三方 UI 的 DOM/存储，防 XSS 扩散到 Host，所有交互可审计。
@@ -572,7 +654,7 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 4. ⭐ **原理（触底）**：MCP Apps 和自研 Tool 结果卡片有什么区别？→ 自研卡片 Host 完全控制渲染；MCP Apps 由 Server 提供 UI 模板，适合工具方自定义交互（地图、图表、表单），但 Host 必须用沙箱+确认门兜底安全。
 5. **实战（落地）**：MCP App 白屏你怎么排查？→ 场景：接第三方 MCP 地图 Server，Tool 触发后 iframe 空白；步骤：DevTools 查 iframe src/`ui://` 资源是否 404 → 查 sandbox 是否缺 `allow-scripts` → 查 postMessage origin → 补 `ui/initialize` 握手；验证：地图可交互、点击走确认门后才调 tools/call；结果：第三方 MCP 富 UI 安全接入，无 XSS 风险。
 
-### 链四：Skills vs Rules
+### 链五：Skills vs Rules
 
 1. **概念**：Skills 和 Rules 区别？→ Rules 是常驻约束（永远遵守）；Skills 是按需加载的任务方法包（做某事时才启用）。
 2. **机制**：为什么 Skills 用渐进式披露、Rules 不用？→ Rules 少而短、需始终生效；Skills 可能几十上百个且很长，全量注入会撑爆 Context。
@@ -584,6 +666,8 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 
 | 误区 | 正确理解 |
 |------|---------|
+| "Agent 就是套了壳的 ChatGPT" | Agent 有工具+自主循环，能行动而非只聊天 |
+| "Agent 全自动不用管" | 多步会累积误差，需确认门/步数上限/可观测兜底 |
 | "Skills 和 MCP 是竞争关系" | 互补：Skills 教方法，MCP 提供能力 |
 | "前端直连 MCP Server" | Client 在 Host/BFF，前端只展示和确认 |
 | "MCP = Tool Calling" | MCP 是协议+生态；Tool Calling 是模型 API 的一次调用 |
@@ -596,6 +680,7 @@ function* parseAgentStream(reader: ReadableStreamDefaultReader): AsyncGenerator<
 
 ## 小结
 
+- **AI Agent** = 大模型 + 工具 + 自主循环（Agent Loop: 思考→行动→观察），从「会聊天」到「能干活」
 - **Tool / MCP / Skills** 三层抽象：动作 / 连接 / 知识，大厂面试必考选型
 - **Rules vs Skills**：Rules 常驻约束，Skills 按需流程；同属知识层，加载机制不同
 - **Skills**：SKILL.md 目录包 + 渐进式披露，教 Agent「怎么做」
